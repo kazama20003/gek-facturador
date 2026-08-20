@@ -2,18 +2,18 @@
 
 Librería y plataforma de **comprobantes electrónicos para Perú** (motor para el SEE — Sistema del Contribuyente), construida con **NestJS + TypeScript** aplicando **DDD con dominio puro y arquitectura hexagonal**.
 
-**Etapa actual (2):** dominio de factura gravada básica + generación de **XML UBL 2.1** con validación estructural (XSD).
+**Etapa actual (3):** dominio de factura gravada básica + XML UBL 2.1 + **firma digital XML-DSig** con validación estructural (XSD) al 100 %.
 
 ## Alcance actual
 
 | Soportado | No soportado todavía |
 | --- | --- |
 | Factura gravada básica (tipo 01, operación 0101) | Boletas, notas de crédito/débito, guías |
-| XML UBL 2.1 **sin firmar** | Firma digital, certificados PFX |
-| Validación well-formed + XSD (OASIS UBL 2.1) | Envío SOAP a SUNAT, CDR, PDF, persistencia |
+| XML UBL 2.1 sin firmar y **firmado (XML-DSig)** | Lectura de certificados PFX (solo PEM) |
+| Validación well-formed + XSD (OASIS UBL 2.1) | Envío SOAP a SUNAT, CDR, ZIP, PDF, persistencia |
 | PEN y USD | Descuentos, anticipos, detracciones, exoneradas/inafectas |
 
-> El XML generado **no está firmado** y **no se envía a SUNAT**. Emitec no es (todavía) un PSE ni una integración certificada.
+> El XML **no se envía a SUNAT** todavía. Emitec no es (todavía) un PSE ni una integración certificada.
 
 ## Estructura
 
@@ -90,8 +90,16 @@ Para generar el XML el emisor debe incluir `tradeName` (opcional) y `address` (o
 }
 ```
 
-- `POST /invoices/xml` → devuelve el XML UBL 2.1 **sin firmar** como `application/xml`.
-- `POST /invoices/xml/validate` → devuelve `{ xml, validation }` con el resultado de la validación XSD.
+- `POST /invoices/xml` → XML UBL 2.1 **sin firmar** como `application/xml`.
+- `POST /invoices/xml/validate` → `{ xml, validation }` del XML sin firmar (reporta la desviación esperada de `ExtensionContent` vacío).
+- `POST /invoices/xml/signed` → XML **firmado** (XML-DSig) como `application/xml`.
+- `POST /invoices/xml/signed/validate` → `{ xml, validation }` del firmado — **valida al 100 % contra el XSD, cero errores**.
+
+### Firma digital
+
+- Firma **enveloped XML-DSig**: `ds:Signature` con `Id="IDSignSP"` dentro de `ext:ExtensionContent`, coincidiendo con la referencia declarativa `cac:Signature` (`#IDSignSP`).
+- Algoritmos: **RSA-SHA256**, digest SHA-256, C14N inclusivo + transform enveloped-signature. Determinista (RSASSA-PKCS1 v1.5).
+- Certificado: variables `SIGN_KEY_PATH` / `SIGN_CERT_PATH` (PEM). Sin configurar, usa el **certificado de prueba autofirmado** de `test/fixtures/certs/` (CN "NO USAR EN PRODUCCION") y lo advierte por consola. Sirve para desarrollo y el beta de SUNAT; producción requiere certificado tributario vigente. La clave de prueba commiteada no es un secreto; nunca commitear claves reales.
 
 Ejemplo con curl:
 
@@ -112,7 +120,7 @@ Niveles de validación (esta etapa cubre solo 1 y 2):
 - **XSD:** OASIS UBL 2.1 oficial (`docs.oasis-open.org/ubl/os-UBL-2.1/xsd`), vendorizados en `resources/xsd/`. Versión: UBL 2.1 OS (noviembre 2013, la referenciada por las guías SUNAT vigentes).
 - **Reglas SUNAT de referencia:** guía de elaboración de factura electrónica UBL 2.1 y catálogos publicados en `cpe.sunat.gob.pe/guias-y-manuales` (consultados 2026-08).
 - **Motor:** `libxml2-wasm` ejecutado en un proceso hijo (`scripts/validate-ubl-xsd.mjs`). Decisión técnica: es ESM-only (incompatible con el runtime CommonJS/Jest del proyecto) y el proceso aislado además contiene el parser. Configurado sin red (`XML_PARSE_NONET`), sin sustitución de entidades y sin acceso a archivos fuera de `resources/xsd` → sin XXE.
-- **Desviación conocida:** el XML sin firmar deja `ext:ExtensionContent` vacío (reservado para `ds:Signature`); el XSD exige un hijo ahí, así que la validación reporta exactamente ese único error hasta la etapa de firma. Sin ese nodo, el documento valida al 100 % (cubierto por tests).
+- **Desviación del XML sin firmar (resuelta al firmar):** `ext:ExtensionContent` vacío produce 1 error de XSD; el XML **firmado** valida al 100 % con cero errores (cubierto por tests).
 
 ## Pruebas
 
@@ -127,6 +135,6 @@ Incluye una prueba **golden file** (`test/fixtures/invoice-f001-1.golden.xml`) y
 
 ## Próximas etapas
 
-1. Firma digital (ds:Signature dentro de `ext:ExtensionContent`, certificado PFX).
-2. Empaquetado ZIP y comunicación SOAP con SUNAT (SEE del Contribuyente) + lectura del CDR.
+1. Lectura de certificados PFX/PKCS#12 y empaquetado ZIP (`RUC-01-SERIE-CORRELATIVO.zip`).
+2. Comunicación SOAP con SUNAT (SEE del Contribuyente, beta) + lectura del CDR.
 3. Persistencia, boletas, notas de crédito/débito, guías de remisión.
