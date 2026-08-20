@@ -24,6 +24,38 @@ export class PartyDto {
   businessName!: string;
 }
 
+export class AddressDto {
+  @IsString()
+  ubigeo!: string;
+
+  @IsString()
+  @MinLength(1)
+  department!: string;
+
+  @IsString()
+  @MinLength(1)
+  province!: string;
+
+  @IsString()
+  @MinLength(1)
+  district!: string;
+
+  @IsString()
+  @MinLength(1)
+  addressLine!: string;
+}
+
+export class IssuerDto extends PartyDto {
+  @IsOptional()
+  @IsString()
+  tradeName?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AddressDto)
+  address?: AddressDto;
+}
+
 export class CreateInvoiceItemDto {
   @IsOptional()
   @IsString()
@@ -64,8 +96,8 @@ export class CreateInvoiceDto {
   currency!: 'PEN' | 'USD';
 
   @ValidateNested()
-  @Type(() => PartyDto)
-  issuer!: PartyDto;
+  @Type(() => IssuerDto)
+  issuer!: IssuerDto;
 
   @ValidateNested()
   @Type(() => PartyDto)

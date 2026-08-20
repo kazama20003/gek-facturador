@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Invoice } from '../../domain/aggregates/invoice';
+import { Address } from '../../domain/value-objects/address';
 import { Correlative } from '../../domain/value-objects/correlative';
 import { Currency } from '../../domain/value-objects/currency';
 import { InvoiceSeries } from '../../domain/value-objects/invoice-series';
@@ -8,13 +9,26 @@ import { Party } from '../../domain/value-objects/party';
 import { Quantity } from '../../domain/value-objects/quantity';
 import { Ruc } from '../../domain/value-objects/ruc';
 
+export interface AddressInput {
+  ubigeo: string;
+  department: string;
+  province: string;
+  district: string;
+  addressLine: string;
+}
+
 /** Primitive input — the boundary between presentation and the domain. */
 export interface CreateInvoiceCommand {
   series: string;
   correlative: number;
   issueDate: string;
   currency: 'PEN' | 'USD';
-  issuer: { ruc: string; businessName: string };
+  issuer: {
+    ruc: string;
+    businessName: string;
+    tradeName?: string;
+    address?: AddressInput;
+  };
   customer: { ruc: string; businessName: string };
   items: Array<{
     code?: string;
@@ -57,7 +71,8 @@ export interface CreateInvoiceResult {
  * No persistence yet — the result is returned directly.
  */
 export class CreateInvoiceUseCase {
-  execute(command: CreateInvoiceCommand): CreateInvoiceResult {
+  /** Builds and issues the aggregate. Reused by other use cases (e.g. XML generation). */
+  buildAggregate(command: CreateInvoiceCommand): Invoice {
     const currency = Currency[command.currency];
 
     const invoice = Invoice.create({
@@ -69,6 +84,10 @@ export class CreateInvoiceUseCase {
       issuer: Party.create({
         ruc: Ruc.create(command.issuer.ruc),
         businessName: command.issuer.businessName,
+        tradeName: command.issuer.tradeName,
+        address: command.issuer.address
+          ? Address.create(command.issuer.address)
+          : undefined,
       }),
       customer: Party.create({
         ruc: Ruc.create(command.customer.ruc),
@@ -87,6 +106,11 @@ export class CreateInvoiceUseCase {
     }
 
     invoice.issue();
+    return invoice;
+  }
+
+  execute(command: CreateInvoiceCommand): CreateInvoiceResult {
+    const invoice = this.buildAggregate(command);
 
     return {
       id: invoice.id,
