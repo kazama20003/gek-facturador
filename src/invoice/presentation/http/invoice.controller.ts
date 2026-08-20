@@ -19,6 +19,10 @@ import {
   SignInvoiceXmlUseCase,
   type SignInvoiceXmlResult,
 } from '../../application/use-cases/sign-invoice-xml.use-case';
+import {
+  SendInvoiceToSunatUseCase,
+  type SendInvoiceToSunatResult,
+} from '../../application/use-cases/send-invoice-to-sunat.use-case';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 
 /** HTTP adapter — translates the DTO to a command; no business logic here. */
@@ -30,7 +34,19 @@ export class InvoiceController {
     private readonly generateInvoiceXml: GenerateInvoiceXmlUseCase,
     @Inject(SignInvoiceXmlUseCase)
     private readonly signInvoiceXml: SignInvoiceXmlUseCase,
+    @Inject(SendInvoiceToSunatUseCase)
+    private readonly sendInvoiceToSunat: SendInvoiceToSunatUseCase,
   ) {}
+
+  /** Temporary development endpoint — signs, zips and submits to SUNAT (beta by default). */
+  @Post('sunat/send')
+  @HttpCode(HttpStatus.CREATED)
+  async sendToSunat(
+    @Body() dto: CreateInvoiceDto,
+  ): Promise<SendInvoiceToSunatResult> {
+    const invoice = this.createInvoice.buildAggregate(dto);
+    return this.sendInvoiceToSunat.execute(invoice);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

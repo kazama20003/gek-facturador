@@ -2,18 +2,19 @@
 
 Librería y plataforma de **comprobantes electrónicos para Perú** (motor para el SEE — Sistema del Contribuyente), construida con **NestJS + TypeScript** aplicando **DDD con dominio puro y arquitectura hexagonal**.
 
-**Etapa actual (3):** dominio de factura gravada básica + XML UBL 2.1 + **firma digital XML-DSig** con validación estructural (XSD) al 100 %.
+**Etapa actual (4):** pipeline completo — dominio → XML UBL 2.1 → firma XML-DSig → ZIP → **envío SOAP a SUNAT (beta)** → lectura del CDR. **Verificado contra el beta real: factura F001-1 aceptada con CDR limpio (ResponseCode 0).**
 
 ## Alcance actual
 
 | Soportado | No soportado todavía |
 | --- | --- |
-| Factura gravada básica (tipo 01, operación 0101) | Boletas, notas de crédito/débito, guías |
-| XML UBL 2.1 sin firmar y **firmado (XML-DSig)** | Lectura de certificados PFX (solo PEM) |
-| Validación well-formed + XSD (OASIS UBL 2.1) | Envío SOAP a SUNAT, CDR, ZIP, PDF, persistencia |
+| Factura gravada básica (tipo 01, operación 0101, forma de pago Contado) | Boletas, notas de crédito/débito, guías |
+| XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
+| Validación well-formed + XSD (OASIS UBL 2.1) | PDF, persistencia, resúmenes/bajas |
+| ZIP `RUC-01-SERIE-CORRELATIVO.zip` + `sendBill` (SOAP) + CDR parseado | Endpoint de producción certificado |
 | PEN y USD | Descuentos, anticipos, detracciones, exoneradas/inafectas |
 
-> El XML **no se envía a SUNAT** todavía. Emitec no es (todavía) un PSE ni una integración certificada.
+> Solo entorno **beta/homologación** de SUNAT. Emitec no es (todavía) un PSE ni una integración certificada.
 
 ## Estructura
 
@@ -133,8 +134,17 @@ pnpm build
 
 Incluye una prueba **golden file** (`test/fixtures/invoice-f001-1.golden.xml`) y una comparación estructural con la salida de [Greenter](https://github.com/thegreenter/xml) (MIT, usado solo como referencia de verificación).
 
+## Envío a SUNAT (beta)
+
+- `POST /invoices/sunat/send` (endpoint dev) → firma, empaqueta y envía por `sendBill`; devuelve `{ fileName, cdr, cdrZipBase64, signedXml }`.
+- Config por entorno: `SUNAT_ENDPOINT` (default beta `e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService`), `SUNAT_SOL_USERNAME` (RUC+usuario, default `20000000001MODDATOS` para beta), `SUNAT_SOL_PASSWORD` (default `moddatos`).
+- Certificado PFX: `SIGN_PFX_PATH` + `SIGN_PFX_PASSWORD` (tiene prioridad sobre los PEM).
+- CDR: se extrae `R-*.xml` del ZIP de respuesta; `responseCode 0` = aceptada, `>=2000` rechazo, notas = observaciones. El parser usa extracción tolerante porque los CDR reales de SUNAT no son namespace-limpios (parsers DOM estrictos los rechazan).
+- Errores SOAP (`faultcode` numérico SUNAT, ej. 0111, 2335) se lanzan como `SunatSoapFaultError`.
+- Hallazgos aplicados de la verificación en vivo: `cac:PaymentTerms` FormaPago/Contado es obligatorio (error 3244, R.S. 193-2020) y `listName` de `InvoiceTypeCode` debe ser "Tipo de Documento" (observación 4252).
+
 ## Próximas etapas
 
-1. Lectura de certificados PFX/PKCS#12 y empaquetado ZIP (`RUC-01-SERIE-CORRELATIVO.zip`).
-2. Comunicación SOAP con SUNAT (SEE del Contribuyente, beta) + lectura del CDR.
-3. Persistencia, boletas, notas de crédito/débito, guías de remisión.
+1. Persistencia de comprobantes y CDRs.
+2. PDF de la factura; boletas, notas de crédito/débito, guías de remisión.
+3. Pago a crédito con cuotas; homologación hacia producción.

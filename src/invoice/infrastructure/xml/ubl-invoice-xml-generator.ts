@@ -35,6 +35,7 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     this.buildSignature(root, doc);
     this.buildSupplier(root, doc);
     this.buildCustomer(root, doc);
+    this.buildPaymentTerms(root);
     this.buildTaxTotal(root, doc);
     this.buildMonetaryTotal(root, doc);
     for (const line of doc.lines) this.buildLine(root, doc, line);
@@ -59,7 +60,7 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     root
       .ele(NS.cbc, 'InvoiceTypeCode')
       .att('listAgencyName', CAT.documentType.listAgencyName)
-      .att('listName', CAT.operationType.listName)
+      .att('listName', CAT.documentType.listName)
       .att('listURI', CAT.documentType.listURI)
       .att('listID', CAT.operationType.internalSale)
       .att('listSchemeURI', CAT.operationType.listSchemeURI)
@@ -162,6 +163,13 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
       .txt(CAT.tax.igv.id);
     scheme.ele(NS.cbc, 'Name').txt(CAT.tax.igv.name);
     scheme.ele(NS.cbc, 'TaxTypeCode').txt(CAT.tax.igv.typeCode);
+  }
+
+  /** Forma de pago (mandatory since R.S. 193-2020; SUNAT error 3244 if absent). */
+  private buildPaymentTerms(root: XMLBuilder): void {
+    const terms = root.ele(NS.cac, 'PaymentTerms');
+    terms.ele(NS.cbc, 'ID').txt(CAT.paymentTerms.id);
+    terms.ele(NS.cbc, 'PaymentMeansID').txt(CAT.paymentTerms.cash);
   }
 
   private buildTaxTotal(root: XMLBuilder, doc: UblInvoiceDocument): void {
