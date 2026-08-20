@@ -1,110 +1,76 @@
-# Facturación Backend
+# Emitec
 
-Backend de **facturación electrónica** (estilo [greenter](https://greenter.dev/)) construido con **NestJS + TypeScript**, aplicando **DDD puro en el dominio** y **arquitectura pragmática en la infraestructura**.
+Librería y plataforma de **comprobantes electrónicos para Perú** (motor para el SEE — Sistema del Contribuyente), construida con **NestJS + TypeScript** aplicando **DDD con dominio puro y arquitectura hexagonal**.
 
-## Stack
+**Etapa actual:** dominio de una factura electrónica gravada básica. Sin XML UBL, firma, SOAP/SUNAT, base de datos ni PDF todavía.
 
-- **NestJS 11** — framework HTTP / inyección de dependencias
-- **PostgreSQL + Prisma** — persistencia
-- **class-validator** — validación de contratos HTTP
-- **Jest** — pruebas
-
-## Arquitectura
-
-Organización por **bounded context**. Cada contexto tiene tres capas:
+## Estructura
 
 ```
 src/
-├── shared/                         # kernel compartido
-│   ├── domain/                     # DominioException
-│   └── infrastructure/             # PrismaModule/Service, filtros HTTP
-└── contexts/
-    └── facturacion/                # bounded context
-        ├── domain/                 # DDD puro — sin dependencias de framework
-        │   ├── entities/           # Comprobante (raíz de agregado), ComprobanteDetalle
-        │   ├── value-objects/      # Ruc, Serie, Dinero
-        │   ├── enums/              # TipoComprobante, EstadoComprobante, Moneda
-        │   └── repositories/       # puertos (interfaces) + token DI
-        ├── application/            # casos de uso (1 caso = 1 responsabilidad)
-        │   ├── crear-comprobante/
-        │   └── buscar-comprobante/
-        └── infrastructure/         # adaptadores (pragmático)
-            ├── http/               # controllers, DTOs, presenters
-            └── persistence/        # repositorio Prisma + mapper
+├── invoice/
+│   ├── domain/                  # puro — sin NestJS, class-validator ni infraestructura
+│   │   ├── aggregates/          # Invoice (aggregate root, totales derivados)
+│   │   ├── entities/            # InvoiceItem (calcula base, IGV, precio, total)
+│   │   ├── value-objects/       # Money, Ruc, InvoiceSeries, Correlative, Quantity,
+│   │   │                        # Currency, IgvAffectationType, Party
+│   │   ├── errors/              # DomainError específicos
+│   │   └── services/            # tasa IGV (18%)
+│   ├── application/
+│   │   └── use-cases/           # CreateInvoiceUseCase (comando primitivo → resultado serializable)
+│   ├── infrastructure/          # (vacío en esta etapa)
+│   ├── presentation/
+│   │   └── http/                # InvoiceController, DomainErrorFilter (422)
+│   │       └── dto/             # CreateInvoiceDto (class-validator)
+│   └── invoice.module.ts
+└── shared/
+    └── domain/                  # DomainError base
 ```
 
-### Reglas arquitectónicas
+## Decisiones
 
-- **Domain no depende de infraestructura** — no importa Nest, Prisma ni HTTP.
-- **Controllers no contienen lógica de negocio** — traducen request → caso de uso → respuesta.
-- **Use cases representan acciones del negocio** — uno por responsabilidad.
-- **Módulos separados por bounded context.**
-- **El código expresa el negocio antes que la tecnología** (nombres en español).
+- **`decimal.js`** para todo cálculo monetario; los importes entran como cadenas (`Money.pen('100.00')`).
+- Redondeo **HALF-UP a 2 decimales** en cada monto derivado.
+- `Ruc` valida el **dígito verificador** (módulo 11 de SUNAT).
+- Los códigos SUNAT (`01` factura, `10` gravada onerosa) viven dentro de VOs/constantes, no como strings mágicos.
+- Sin repositorios ni persistencia aún: el use case retorna el resultado directamente.
 
-El dominio se traduce a/desde la base de datos vía **mappers**; nunca se filtran tipos de Prisma al dominio.
-
-## Convenciones
-
-| Elemento     | Convención            | Ejemplo                     |
-| ------------ | --------------------- | --------------------------- |
-| Clases       | PascalCase            | `CrearComprobanteUseCase`   |
-| Variables    | camelCase             | `fechaEmision`              |
-| Métodos      | camelCase             | `ejecutar()`, `aceptar()`   |
-| Archivos     | kebab-case            | `crear-comprobante.use-case.ts` |
-| Constantes   | UPPER_SNAKE_CASE      | `PORCENTAJE_IGV`            |
-| Enums        | PascalCase            | `EstadoComprobante`         |
-| Tablas SQL   | snake_case, singular  | `comprobante`, `comprobante_detalle` |
-| Columnas     | snake_case            | `fecha_emision`, `ruc_emisor` |
-| Llave foránea| `id_entidad`          | `id_comprobante`            |
-
-## Puesta en marcha
+## Uso
 
 ```bash
 pnpm install
-cp .env.example .env          # completar DATABASE_URL
-pnpm prisma:generate
-pnpm prisma:migrate           # crea el esquema en PostgreSQL
 pnpm start:dev
 ```
 
-## Endpoints
-
-Prefijo global: `/api`
-
-| Método | Ruta                 | Descripción                  |
-| ------ | -------------------- | ---------------------------- |
-| POST   | `/api/comprobantes`  | Emitir un comprobante        |
-| GET    | `/api/comprobantes/:id` | Consultar por id          |
-
-Ejemplo de emisión:
+`POST /invoices`:
 
 ```json
-POST /api/comprobantes
 {
-  "tipo": "01",
-  "serie": "F001",
-  "moneda": "PEN",
-  "rucEmisor": "20123456789",
-  "docReceptor": "10456789012",
-  "nombreReceptor": "Cliente SAC",
-  "detalles": [
-    { "descripcion": "Servicio de flete", "cantidad": 2, "precioUnitario": 100 }
+  "series": "F001",
+  "correlative": 1,
+  "issueDate": "2026-08-20",
+  "currency": "PEN",
+  "issuer": { "ruc": "20000000001", "businessName": "EMITEC SAC" },
+  "customer": { "ruc": "20100070970", "businessName": "CLIENTE SAC" },
+  "items": [
+    { "code": "SERV-001", "description": "Servicio de transporte", "unitCode": "ZZ", "quantity": "1", "unitValue": "100.00" }
   ]
 }
 ```
 
-El correlativo se asigna automáticamente por serie. El IGV (18%) y los totales se calculan en el dominio.
+Respuesta: totales calculados por el dominio (`100.00` + IGV `18.00` = `118.00`). Errores de formato → 400; violaciones de reglas de dominio → 422.
 
 ## Pruebas
 
 ```bash
-pnpm test           # unitarias (dominio)
-pnpm test:cov       # con cobertura
+pnpm test        # unitarias (dominio + use case)
+pnpm test:e2e    # endpoint
+pnpm lint
+pnpm build
 ```
 
-## Próximos pasos
+## Próximas etapas
 
-- Migración inicial de Prisma (`prisma migrate dev`).
-- Generación de XML UBL 2.1 y firma digital (núcleo SUNAT, como greenter).
-- Casos de uso: anular comprobante, notas de crédito/débito.
-- Autenticación / autorización.
+1. XML UBL 2.1 y firma digital.
+2. Comunicación SOAP con SUNAT (SEE del Contribuyente).
+3. Persistencia, boletas, notas de crédito/débito, guías de remisión.

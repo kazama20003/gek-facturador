@@ -1,13 +1,11 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { DominioExceptionFilter } from './shared/infrastructure/http/dominio-exception.filter';
+import { DomainErrorFilter } from './invoice/presentation/http/domain-error.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api');
-  app.enableCors();
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -15,13 +13,12 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.useGlobalFilters(new DominioExceptionFilter());
+  app.useGlobalFilters(new DomainErrorFilter());
 
   await app.listen(process.env.PORT ?? 3000);
 }
 
 bootstrap().catch((error) => {
-  // eslint-disable-next-line no-console
-  console.error('Error al iniciar la aplicación', error);
+  console.error('Failed to start application', error);
   process.exit(1);
 });
