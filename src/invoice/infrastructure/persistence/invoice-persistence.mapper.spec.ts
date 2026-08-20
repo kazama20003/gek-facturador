@@ -43,7 +43,7 @@ describe('InvoicePersistenceMapper', () => {
           total: '118.00',
         },
       ],
-    } as never);
+    });
 
     expect(rebuilt.id).toBe(original.id);
     expect(rebuilt.total.toFixed()).toBe('118.00');

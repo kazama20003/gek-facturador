@@ -3,7 +3,12 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import type { CreateInvoiceResult } from '../src/invoice/application/use-cases/create-invoice.use-case';
+import { INVOICE_REPOSITORY } from '../src/invoice/application/ports/invoice-repository.port';
+import {
+  CreateInvoiceUseCase,
+  type CreateInvoiceResult,
+} from '../src/invoice/application/use-cases/create-invoice.use-case';
+import { InMemoryInvoiceRepository } from '../src/invoice/infrastructure/persistence/in-memory-invoice.repository';
 import { DomainErrorFilter } from '../src/invoice/presentation/http/domain-error.filter';
 
 const validBody = {
@@ -28,9 +33,16 @@ describe('POST /invoices (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
+    // Tests never touch a real database, even if a local .env sets DATABASE_URL.
+    const repo = new InMemoryInvoiceRepository();
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(INVOICE_REPOSITORY)
+      .useValue(repo)
+      .overrideProvider(CreateInvoiceUseCase)
+      .useValue(new CreateInvoiceUseCase(repo))
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
