@@ -1,0 +1,49 @@
+// Prisma schema — capa de infraestructura (persistencia).
+// Convención tablas: snake_case, singular, representan el negocio.
+// El dominio NO conoce este archivo; se traduce vía mappers.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Comprobante electrónico (factura, boleta, nota).
+model comprobante {
+  id              String   @id @default(uuid())
+  tipo            String // '01' factura, '03' boleta (catálogo SUNAT 01)
+  serie           String // ej. F001
+  correlativo     Int
+  fecha_emision   DateTime
+  moneda          String // PEN, USD
+  ruc_emisor      String
+  doc_receptor    String // RUC o DNI del receptor
+  nombre_receptor String
+  subtotal        Decimal  @db.Decimal(12, 2)
+  igv             Decimal  @db.Decimal(12, 2)
+  total           Decimal  @db.Decimal(12, 2)
+  estado          String // PENDIENTE, ACEPTADO, RECHAZADO, ANULADO
+  creado_en       DateTime @default(now())
+
+  detalles comprobante_detalle[]
+
+  @@unique([serie, correlativo])
+  @@index([ruc_emisor])
+}
+
+/// Línea/ítem de un comprobante.
+model comprobante_detalle {
+  id              String  @id @default(uuid())
+  id_comprobante  String
+  descripcion     String
+  cantidad        Decimal @db.Decimal(12, 3)
+  precio_unitario Decimal @db.Decimal(12, 2)
+  importe         Decimal @db.Decimal(12, 2)
+
+  comprobante comprobante @relation(fields: [id_comprobante], references: [id], onDelete: Cascade)
+
+  @@index([id_comprobante])
+}
