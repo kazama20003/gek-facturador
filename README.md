@@ -2,7 +2,7 @@
 
 Librería y plataforma de **comprobantes electrónicos para Perú** (motor para el SEE — Sistema del Contribuyente), construida con **NestJS + TypeScript** aplicando **DDD con dominio puro y arquitectura hexagonal**.
 
-**Etapa actual (4):** pipeline completo — dominio → XML UBL 2.1 → firma XML-DSig → ZIP → **envío SOAP a SUNAT (beta)** → lectura del CDR. **Verificado contra el beta real: factura F001-1 aceptada con CDR limpio (ResponseCode 0).**
+**Etapa actual (5):** pipeline completo — dominio → XML UBL 2.1 → firma XML-DSig → ZIP → **envío SOAP a SUNAT (beta)** → lectura del CDR → **persistencia (PostgreSQL/Prisma)**. **Verificado contra el beta real: factura F001-1 aceptada con CDR limpio (ResponseCode 0).**
 
 ## Alcance actual
 
@@ -10,7 +10,8 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | --- | --- |
 | Factura gravada básica (tipo 01, operación 0101, forma de pago Contado) | Boletas, notas de crédito/débito, guías |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
-| Validación well-formed + XSD (OASIS UBL 2.1) | PDF, persistencia, resúmenes/bajas |
+| Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
+| Persistencia PostgreSQL/Prisma (estado + CDR) | Listados/consultas avanzadas |
 | ZIP `RUC-01-SERIE-CORRELATIVO.zip` + `sendBill` (SOAP) + CDR parseado | Endpoint de producción certificado |
 | PEN y USD | Descuentos, anticipos, detracciones, exoneradas/inafectas |
 
@@ -143,8 +144,18 @@ Incluye una prueba **golden file** (`test/fixtures/invoice-f001-1.golden.xml`) y
 - Errores SOAP (`faultcode` numérico SUNAT, ej. 0111, 2335) se lanzan como `SunatSoapFaultError`.
 - Hallazgos aplicados de la verificación en vivo: `cac:PaymentTerms` FormaPago/Contado es obligatorio (error 3244, R.S. 193-2020) y `listName` de `InvoiceTypeCode` debe ser "Tipo de Documento" (observación 4252).
 
+## Persistencia
+
+- **PostgreSQL + Prisma 6**. Esquema en `prisma/schema.prisma` (tablas snake_case singular: `invoice`, `invoice_item`; FK `id_invoice`). Migración inicial en `prisma/migrations/0001_init`.
+- Arranque: `docker compose up -d` (Postgres local) → copiar `.env.example` a `.env` → `pnpm exec prisma migrate deploy` → `pnpm start:dev`.
+- **Sin `DATABASE_URL` la app usa un repositorio en memoria** (volátil, con advertencia) — útil para desarrollo rápido; los tests nunca tocan la base.
+- El dominio no conoce Prisma: puerto `InvoiceRepository` + mapper que reconstruye el agregado re-ejecutando sus invariantes.
+- Flujo persistido:
+  1. `POST /invoices` — guarda; serie+correlativo duplicado para el mismo emisor → **409**.
+  2. `GET /invoices/:id` — estado (`ISSUED`/`ACCEPTED`/`REJECTED`) + datos del CDR; desconocida → **404**.
+  3. `POST /invoices/:id/sunat/send` — envía a SUNAT y guarda CDR, XML firmado y estado.
+
 ## Próximas etapas
 
-1. Persistencia de comprobantes y CDRs.
-2. PDF de la factura; boletas, notas de crédito/débito, guías de remisión.
-3. Pago a crédito con cuotas; homologación hacia producción.
+1. PDF de la factura; boletas, notas de crédito/débito, guías de remisión.
+2. Pago a crédito con cuotas; homologación hacia producción.

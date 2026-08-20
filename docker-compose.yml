@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: emitec
+      POSTGRES_PASSWORD: emitec
+      POSTGRES_DB: emitec
+    ports:
+      - '5432:5432'
+    volumes:
+      - emitec_pgdata:/var/lib/postgresql/data
+
+volumes:
+  emitec_pgdata:

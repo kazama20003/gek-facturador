@@ -5,15 +5,29 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import {
+  DuplicateInvoiceError,
+  InvoiceNotFoundError,
+} from '../../domain/errors/invoice-errors';
 import { DomainError } from '../../../shared/domain/domain-error';
 
-/** Maps domain rule violations to HTTP 422, keeping the domain HTTP-agnostic. */
+/**
+ * Maps domain errors to HTTP, keeping the domain HTTP-agnostic:
+ * not found → 404, duplicate → 409, any other rule violation → 422.
+ */
 @Catch(DomainError)
 export class DomainErrorFilter implements ExceptionFilter {
   catch(exception: DomainError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-    response.status(HttpStatus.UNPROCESSABLE_ENTITY).json({
-      statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    const status =
+      exception instanceof InvoiceNotFoundError
+        ? HttpStatus.NOT_FOUND
+        : exception instanceof DuplicateInvoiceError
+          ? HttpStatus.CONFLICT
+          : HttpStatus.UNPROCESSABLE_ENTITY;
+
+    response.status(status).json({
+      statusCode: status,
       error: exception.name,
       message: exception.message,
     });

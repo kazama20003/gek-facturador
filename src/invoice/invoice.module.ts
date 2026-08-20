@@ -1,8 +1,14 @@
 import { Module } from '@nestjs/common';
+import { INVOICE_REPOSITORY } from './application/ports/invoice-repository.port';
+import type { InvoiceRepository } from './application/ports/invoice-repository.port';
 import { CreateInvoiceUseCase } from './application/use-cases/create-invoice.use-case';
+import { FindInvoiceUseCase } from './application/use-cases/find-invoice.use-case';
 import { GenerateInvoiceXmlUseCase } from './application/use-cases/generate-invoice-xml.use-case';
 import { SendInvoiceToSunatUseCase } from './application/use-cases/send-invoice-to-sunat.use-case';
+import { SubmitStoredInvoiceUseCase } from './application/use-cases/submit-stored-invoice.use-case';
 import { SignInvoiceXmlUseCase } from './application/use-cases/sign-invoice-xml.use-case';
+import { InMemoryInvoiceRepository } from './infrastructure/persistence/in-memory-invoice.repository';
+import { PrismaInvoiceRepository } from './infrastructure/persistence/prisma-invoice.repository';
 import { loadSigningCredentials } from './infrastructure/signature/signing-credentials.provider';
 import { XmldsigInvoiceSigner } from './infrastructure/signature/xmldsig-invoice-signer';
 import {
@@ -13,6 +19,7 @@ import { SpanishAmountInWordsConverter } from './infrastructure/words/spanish-am
 import { UblInvoiceMapper } from './infrastructure/xml/ubl-invoice-mapper';
 import { UblInvoiceXmlGenerator } from './infrastructure/xml/ubl-invoice-xml-generator';
 import { JszipInvoicePackager } from './infrastructure/zip/jszip-invoice-packager';
+import { PrismaService } from '../shared/infrastructure/persistence/prisma.service';
 import { ChildProcessUblXmlValidator } from '../shared/infrastructure/xml/child-process-ubl-xml-validator';
 import { InvoiceController } from './presentation/http/invoice.controller';
 
@@ -29,10 +36,30 @@ function buildSigner(): XmldsigInvoiceSigner {
 @Module({
   controllers: [InvoiceController],
   providers: [
+    PrismaService,
     // Factories keep application and infrastructure classes free of NestJS decorators.
     {
+      provide: INVOICE_REPOSITORY,
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService): InvoiceRepository => {
+        if (process.env.DATABASE_URL) {
+          return new PrismaInvoiceRepository(prisma);
+        }
+        console.warn(
+          '[emitec] DATABASE_URL not set — using the volatile in-memory repository. Data is lost on restart.',
+        );
+        return new InMemoryInvoiceRepository();
+      },
+    },
+    {
       provide: CreateInvoiceUseCase,
-      useFactory: () => new CreateInvoiceUseCase(),
+      inject: [INVOICE_REPOSITORY],
+      useFactory: (repo: InvoiceRepository) => new CreateInvoiceUseCase(repo),
+    },
+    {
+      provide: FindInvoiceUseCase,
+      inject: [INVOICE_REPOSITORY],
+      useFactory: (repo: InvoiceRepository) => new FindInvoiceUseCase(repo),
     },
     {
       provide: GenerateInvoiceXmlUseCase,
@@ -65,6 +92,12 @@ function buildSigner(): XmldsigInvoiceSigner {
             password: process.env.SUNAT_SOL_PASSWORD ?? 'moddatos',
           }),
         ),
+    },
+    {
+      provide: SubmitStoredInvoiceUseCase,
+      inject: [INVOICE_REPOSITORY, SendInvoiceToSunatUseCase],
+      useFactory: (repo: InvoiceRepository, send: SendInvoiceToSunatUseCase) =>
+        new SubmitStoredInvoiceUseCase(repo, send),
     },
   ],
 })

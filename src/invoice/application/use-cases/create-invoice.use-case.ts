@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Invoice } from '../../domain/aggregates/invoice';
+import { DuplicateInvoiceError } from '../../domain/errors/invoice-errors';
+import type { InvoiceRepository } from '../ports/invoice-repository.port';
 import { Address } from '../../domain/value-objects/address';
 import { Correlative } from '../../domain/value-objects/correlative';
 import { Currency } from '../../domain/value-objects/currency';
@@ -66,11 +68,48 @@ export interface CreateInvoiceResult {
   }>;
 }
 
+/** Serializes the aggregate for API responses. Shared by several use cases. */
+export function serializeInvoice(invoice: Invoice): CreateInvoiceResult {
+  return {
+    id: invoice.id,
+    documentType: invoice.documentType,
+    series: invoice.series.toString(),
+    correlative: invoice.correlative.toNumber(),
+    issueDate: invoice.issueDate.toISOString(),
+    currency: invoice.currency,
+    issuer: {
+      ruc: invoice.issuer.ruc.toString(),
+      businessName: invoice.issuer.businessName,
+    },
+    customer: {
+      ruc: invoice.customer.ruc.toString(),
+      businessName: invoice.customer.businessName,
+    },
+    taxableAmount: invoice.taxableAmount.toFixed(),
+    igv: invoice.igv.toFixed(),
+    saleValue: invoice.saleValue.toFixed(),
+    total: invoice.total.toFixed(),
+    items: invoice.lines.map((line) => ({
+      code: line.code,
+      description: line.description,
+      unitCode: line.unitCode,
+      quantity: line.quantity.toString(),
+      unitValue: line.unitValue.toFixed(),
+      taxableAmount: line.taxableAmount.toFixed(),
+      igv: line.igv.toFixed(),
+      unitPrice: line.unitPrice.toFixed(),
+      total: line.total.toFixed(),
+    })),
+  };
+}
+
 /**
- * Creates and issues a taxed invoice in the domain.
- * No persistence yet — the result is returned directly.
+ * Creates, issues and persists a taxed invoice. Rejects duplicated
+ * series+correlative for the same issuer.
  */
 export class CreateInvoiceUseCase {
+  constructor(private readonly invoices: InvoiceRepository) {}
+
   /** Builds and issues the aggregate. Reused by other use cases (e.g. XML generation). */
   buildAggregate(command: CreateInvoiceCommand): Invoice {
     const currency = Currency[command.currency];
@@ -109,39 +148,23 @@ export class CreateInvoiceUseCase {
     return invoice;
   }
 
-  execute(command: CreateInvoiceCommand): CreateInvoiceResult {
+  async execute(command: CreateInvoiceCommand): Promise<CreateInvoiceResult> {
     const invoice = this.buildAggregate(command);
 
-    return {
-      id: invoice.id,
-      documentType: invoice.documentType,
-      series: invoice.series.toString(),
-      correlative: invoice.correlative.toNumber(),
-      issueDate: invoice.issueDate.toISOString(),
-      currency: invoice.currency,
-      issuer: {
-        ruc: invoice.issuer.ruc.toString(),
-        businessName: invoice.issuer.businessName,
-      },
-      customer: {
-        ruc: invoice.customer.ruc.toString(),
-        businessName: invoice.customer.businessName,
-      },
-      taxableAmount: invoice.taxableAmount.toFixed(),
-      igv: invoice.igv.toFixed(),
-      saleValue: invoice.saleValue.toFixed(),
-      total: invoice.total.toFixed(),
-      items: invoice.lines.map((line) => ({
-        code: line.code,
-        description: line.description,
-        unitCode: line.unitCode,
-        quantity: line.quantity.toString(),
-        unitValue: line.unitValue.toFixed(),
-        taxableAmount: line.taxableAmount.toFixed(),
-        igv: line.igv.toFixed(),
-        unitPrice: line.unitPrice.toFixed(),
-        total: line.total.toFixed(),
-      })),
-    };
+    const duplicated = await this.invoices.existsSeriesCorrelative(
+      invoice.issuer.ruc.toString(),
+      invoice.documentType,
+      invoice.series.toString(),
+      invoice.correlative.toNumber(),
+    );
+    if (duplicated) {
+      throw new DuplicateInvoiceError(
+        invoice.series.toString(),
+        invoice.correlative.toNumber(),
+      );
+    }
+
+    await this.invoices.save(invoice);
+    return serializeInvoice(invoice);
   }
 }

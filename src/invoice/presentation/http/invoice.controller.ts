@@ -1,16 +1,23 @@
 import {
   Body,
   Controller,
+  Get,
   Header,
   HttpCode,
   HttpStatus,
   Inject,
+  Param,
   Post,
 } from '@nestjs/common';
 import {
   CreateInvoiceUseCase,
   type CreateInvoiceResult,
 } from '../../application/use-cases/create-invoice.use-case';
+import {
+  FindInvoiceUseCase,
+  type FindInvoiceResult,
+} from '../../application/use-cases/find-invoice.use-case';
+import { SubmitStoredInvoiceUseCase } from '../../application/use-cases/submit-stored-invoice.use-case';
 import {
   GenerateInvoiceXmlUseCase,
   type GenerateInvoiceXmlResult,
@@ -36,7 +43,23 @@ export class InvoiceController {
     private readonly signInvoiceXml: SignInvoiceXmlUseCase,
     @Inject(SendInvoiceToSunatUseCase)
     private readonly sendInvoiceToSunat: SendInvoiceToSunatUseCase,
+    @Inject(FindInvoiceUseCase)
+    private readonly findInvoice: FindInvoiceUseCase,
+    @Inject(SubmitStoredInvoiceUseCase)
+    private readonly submitStoredInvoice: SubmitStoredInvoiceUseCase,
   ) {}
+
+  @Get(':id')
+  find(@Param('id') id: string): Promise<FindInvoiceResult> {
+    return this.findInvoice.execute(id);
+  }
+
+  /** Submits a persisted invoice to SUNAT and records the CDR outcome. */
+  @Post(':id/sunat/send')
+  @HttpCode(HttpStatus.CREATED)
+  submitToSunat(@Param('id') id: string): Promise<SendInvoiceToSunatResult> {
+    return this.submitStoredInvoice.execute(id);
+  }
 
   /** Temporary development endpoint — signs, zips and submits to SUNAT (beta by default). */
   @Post('sunat/send')
@@ -50,7 +73,7 @@ export class InvoiceController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateInvoiceDto): CreateInvoiceResult {
+  create(@Body() dto: CreateInvoiceDto): Promise<CreateInvoiceResult> {
     return this.createInvoice.execute(dto);
   }
 

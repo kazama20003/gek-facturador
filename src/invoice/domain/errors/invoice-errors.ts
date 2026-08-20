@@ -21,3 +21,15 @@ export class InvoiceWithoutItemsError extends DomainError {
 export class InvalidInvoiceItemError extends DomainError {}
 
 export class InvalidPartyError extends DomainError {}
+
+export class DuplicateInvoiceError extends DomainError {
+  constructor(series: string, correlative: number) {
+    super(`Invoice ${series}-${correlative} already exists for this issuer.`);
+  }
+}
+
+export class InvoiceNotFoundError extends DomainError {
+  constructor(id: string) {
+    super(`Invoice ${id} was not found.`);
+  }
+}
