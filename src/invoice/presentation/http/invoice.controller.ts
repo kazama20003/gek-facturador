@@ -68,8 +68,11 @@ export class InvoiceController {
   @Get(':id/pdf')
   @Header('Content-Type', 'application/pdf')
   async pdf(@Param('id') id: string): Promise<StreamableFile> {
-    const buffer = await this.generatePdf.execute(id);
-    return new StreamableFile(buffer, { type: 'application/pdf' });
+    const { buffer, fileName } = await this.generatePdf.execute(id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${fileName}"`,
+    });
   }
 
   /** Submits a persisted invoice to SUNAT and records the CDR outcome. */

@@ -9,6 +9,7 @@ import { Invoice } from '../../domain/aggregates/invoice';
 interface Entry {
   invoice: Invoice;
   status: InvoiceStatus;
+  signedXml?: string;
   sunat?: StoredInvoice['sunat'];
 }
 
@@ -52,6 +53,7 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     const entry = this.entries.get(id);
     if (entry) {
       entry.status = outcome.cdr.accepted ? 'ACCEPTED' : 'REJECTED';
+      entry.signedXml = outcome.signedXml;
       entry.sunat = {
         fileName: outcome.fileName,
         responseCode: outcome.cdr.responseCode,
@@ -66,6 +68,7 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     const entry = this.entries.get(id);
     if (entry) {
       entry.status = outcome.cdr.accepted ? 'VOIDED' : entry.status;
+      entry.signedXml = outcome.signedXml;
       entry.sunat = {
         fileName: outcome.fileName,
         responseCode: outcome.cdr.responseCode,
