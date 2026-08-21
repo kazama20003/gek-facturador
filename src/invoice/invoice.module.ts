@@ -21,7 +21,17 @@ import { UblInvoiceXmlGenerator } from './infrastructure/xml/ubl-invoice-xml-gen
 import { JszipInvoicePackager } from './infrastructure/zip/jszip-invoice-packager';
 import { PrismaService } from '../shared/infrastructure/persistence/prisma.service';
 import { ChildProcessUblXmlValidator } from '../shared/infrastructure/xml/child-process-ubl-xml-validator';
+import { INVOICE_XML_SIGNER } from './application/ports/invoice-xml-signer.port';
+import { CreateNoteUseCase } from './application/use-cases/create-note.use-case';
+import {
+  NOTE_XML_GENERATOR,
+  SendNoteToSunatUseCase,
+  type NoteXmlGenerator,
+} from './application/use-cases/send-note-to-sunat.use-case';
+import { UblNoteMapper } from './infrastructure/xml/ubl-note-mapper';
+import { UblNoteXmlGenerator } from './infrastructure/xml/ubl-note-xml-generator';
 import { InvoiceController } from './presentation/http/invoice.controller';
+import { NoteController } from './presentation/http/note.controller';
 
 function buildGenerator(): UblInvoiceXmlGenerator {
   return new UblInvoiceXmlGenerator(
@@ -33,10 +43,39 @@ function buildSigner(): XmldsigInvoiceSigner {
   return new XmldsigInvoiceSigner(loadSigningCredentials());
 }
 
+function buildSunatSender(): SunatSoapClient {
+  return new SunatSoapClient({
+    endpoint: process.env.SUNAT_ENDPOINT ?? SUNAT_BETA_ENDPOINT,
+    // Beta accepts the generic SOL user MODDATOS/moddatos for any RUC.
+    username: process.env.SUNAT_SOL_USERNAME ?? '20000000001MODDATOS',
+    password: process.env.SUNAT_SOL_PASSWORD ?? 'moddatos',
+  });
+}
+
 @Module({
-  controllers: [InvoiceController],
+  controllers: [InvoiceController, NoteController],
   providers: [
     PrismaService,
+    { provide: INVOICE_XML_SIGNER, useFactory: () => buildSigner() },
+    {
+      provide: NOTE_XML_GENERATOR,
+      useFactory: (): NoteXmlGenerator =>
+        new UblNoteXmlGenerator(
+          new UblNoteMapper(new SpanishAmountInWordsConverter()),
+        ),
+    },
+    { provide: CreateNoteUseCase, useFactory: () => new CreateNoteUseCase() },
+    {
+      provide: SendNoteToSunatUseCase,
+      inject: [NOTE_XML_GENERATOR, INVOICE_XML_SIGNER],
+      useFactory: (generator: NoteXmlGenerator, signer: XmldsigInvoiceSigner) =>
+        new SendNoteToSunatUseCase(
+          generator,
+          signer,
+          new JszipInvoicePackager(),
+          buildSunatSender(),
+        ),
+    },
     // Factories keep application and infrastructure classes free of NestJS decorators.
     {
       provide: INVOICE_REPOSITORY,

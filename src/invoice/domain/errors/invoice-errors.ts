@@ -33,3 +33,13 @@ export class InvoiceNotFoundError extends DomainError {
     super(`Invoice ${id} was not found.`);
   }
 }
+
+export class InvalidNoteSeriesError extends DomainError {}
+
+export class InvalidNoteReasonError extends DomainError {}
+
+export class NoteWithoutItemsError extends DomainError {
+  constructor() {
+    super('A note cannot be issued without items.');
+  }
+}

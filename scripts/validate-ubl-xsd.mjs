@@ -15,7 +15,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-const XSD_MAIN = path.join('resources', 'xsd', 'maindoc', 'UBL-Invoice-2.1.xsd');
+/** Pick the schema by document root: Invoice, CreditNote or DebitNote. */
+function mainXsdFor(xml) {
+  const root = xml.match(/<([A-Za-z]+)[\s>]/)?.[1];
+  const byRoot = {
+    Invoice: 'UBL-Invoice-2.1.xsd',
+    CreditNote: 'UBL-CreditNote-2.1.xsd',
+    DebitNote: 'UBL-DebitNote-2.1.xsd',
+  };
+  return path.join('resources', 'xsd', 'maindoc', byRoot[root] ?? 'UBL-Invoice-2.1.xsd');
+}
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -49,7 +58,8 @@ try {
 
 try {
   xmlRegisterFsInputProviders();
-  const xsdDoc = XmlDocument.fromBuffer(fs.readFileSync(XSD_MAIN), { url: XSD_MAIN });
+  const xsdMain = mainXsdFor(xml);
+  const xsdDoc = XmlDocument.fromBuffer(fs.readFileSync(xsdMain), { url: xsdMain });
   const validator = XsdValidator.fromDoc(xsdDoc);
   try {
     validator.validate(doc);

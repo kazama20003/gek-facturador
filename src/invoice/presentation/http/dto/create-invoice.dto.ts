@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -51,6 +52,7 @@ export class IssuerDto extends PartyDto {
   tradeName?: string;
 
   @IsOptional()
+  @IsDefined()
   @ValidateNested()
   @Type(() => AddressDto)
   address?: AddressDto;
@@ -95,10 +97,12 @@ export class CreateInvoiceDto {
   @IsIn(['PEN', 'USD'])
   currency!: 'PEN' | 'USD';
 
+  @IsDefined()
   @ValidateNested()
   @Type(() => IssuerDto)
   issuer!: IssuerDto;
 
+  @IsDefined()
   @ValidateNested()
   @Type(() => PartyDto)
   customer!: PartyDto;
