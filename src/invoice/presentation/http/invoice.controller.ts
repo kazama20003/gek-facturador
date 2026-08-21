@@ -8,6 +8,7 @@ import {
   Inject,
   Param,
   Post,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   CreateInvoiceUseCase,
@@ -34,6 +35,7 @@ import {
   SendInvoiceToSunatUseCase,
   type SendInvoiceToSunatResult,
 } from '../../application/use-cases/send-invoice-to-sunat.use-case';
+import { GeneratePdfUseCase } from '../../application/use-cases/generate-invoice-pdf.use-case';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 
 /** HTTP adapter — translates the DTO to a command; no business logic here. */
@@ -53,11 +55,21 @@ export class InvoiceController {
     private readonly submitStoredInvoice: SubmitStoredInvoiceUseCase,
     @Inject(QueryInvoiceCdrUseCase)
     private readonly queryInvoiceCdr: QueryInvoiceCdrUseCase,
+    @Inject(GeneratePdfUseCase)
+    private readonly generatePdf: GeneratePdfUseCase,
   ) {}
 
   @Get(':id')
   find(@Param('id') id: string): Promise<FindInvoiceResult> {
     return this.findInvoice.execute(id);
+  }
+
+  /** Printed representation (representación impresa) of a persisted invoice. */
+  @Get(':id/pdf')
+  @Header('Content-Type', 'application/pdf')
+  async pdf(@Param('id') id: string): Promise<StreamableFile> {
+    const buffer = await this.generatePdf.execute(id);
+    return new StreamableFile(buffer, { type: 'application/pdf' });
   }
 
   /** Submits a persisted invoice to SUNAT and records the CDR outcome. */

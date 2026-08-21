@@ -61,6 +61,8 @@ import {
   PrismaSubmissionRepository,
 } from './infrastructure/persistence/submission.repositories';
 import { NoteController } from './presentation/http/note.controller';
+import { GeneratePdfUseCase } from './application/use-cases/generate-invoice-pdf.use-case';
+import { ReactInvoicePdfGenerator } from './infrastructure/pdf/invoice-pdf-generator';
 
 function buildGenerator(): UblInvoiceXmlGenerator {
   return new UblInvoiceXmlGenerator(
@@ -265,6 +267,17 @@ function buildSunatSummarySender(): SunatSoapClient {
       inject: [INVOICE_REPOSITORY],
       useFactory: (repo: InvoiceRepository) =>
         new QueryInvoiceCdrUseCase(repo, buildSunatSender()),
+    },
+    {
+      provide: GeneratePdfUseCase,
+      inject: [INVOICE_REPOSITORY],
+      useFactory: (repo: InvoiceRepository) =>
+        new GeneratePdfUseCase(
+          repo,
+          buildGenerator(),
+          buildSigner(),
+          new ReactInvoicePdfGenerator(new SpanishAmountInWordsConverter()),
+        ),
     },
   ],
 })

@@ -26,6 +26,10 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 
 **Robustez (etapa 8):** reintentos con backoff exponencial ante fallos transitorios (red, HTTP 5xx/401/429, timeouts) — los faults de negocio de SUNAT no se reintentan; envío idempotente (una factura ACCEPTED no se reenvía); `POST /invoices/:id/sunat/cdr` reconsulta el CDR (getStatusCdr) si un envío quedó en duda.
 
+**Representación impresa — PDF (etapa 9):** `GET /invoices/:id/pdf` devuelve el PDF A4 (`Content-Type: application/pdf`) de una factura persistida. Incluye datos del emisor (RUC, razón social, dirección), receptor, serie-correlativo, tipo de documento, fecha, tabla de ítems (descripción, cantidad, valor unitario, importe), totales (op. gravada/exonerada/inafecta/gratuita, IGV, total), leyenda del importe en letras y el **QR de SUNAT** embebido como imagen (data URI, sin acceso a red). El contenido del QR (`RUC|tipoDoc|serie|correlativo|IGV|total|fecha|tipoDocReceptor|nroDocReceptor|hash`) y el _digest_ de la firma se derivan de `sunat-qr.ts`; el XML se re-firma al vuelo para obtener el `DigestValue`. Render con **`@react-pdf/renderer`** (ESM, cargado vía `import()` dinámico) usando `React.createElement`; sin JSX, sin tocar `tsconfig`. Los scripts de test corren con `NODE_OPTIONS=--experimental-vm-modules` (vía `cross-env`) para que Jest resuelva el paquete ESM.
+
+> **Prisma 7:** la URL de conexión ya no vive en `schema.prisma`; el _Schema Engine_ (migrate) la lee de `prisma.config.ts` (`DATABASE_URL`) y el cliente en runtime cablea el **driver adapter** de Postgres (`@prisma/adapter-pg`) en `PrismaService`. Sin `DATABASE_URL` el adapter se construye contra un placeholder inocuo (conexión lazy) y nunca se consulta, ya que los repositorios Prisma sólo se inyectan cuando la variable está presente.
+
 ## Estructura
 
 ```
