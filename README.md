@@ -9,7 +9,8 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | Soportado | No soportado todavía |
 | --- | --- |
 | Factura (01) y boleta (03, receptor DNI) gravadas básicas | Guías de remisión |
-| **Resumen diario de boletas (RC)** por sendSummary + ticket + getStatus | Comunicación de baja (RA) |
+| **Resumen diario de boletas (RC)** por sendSummary + ticket + getStatus | Pago a crédito con cuotas |
+| **Comunicación de baja (RA)** — anula facturas/notas aceptadas (estado VOIDED) | Exoneradas/inafectas, descuentos, detracciones |
 | Notas de crédito (07) y débito (08) por `sendBill`, **persistidas** | Comunicación de baja |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
@@ -172,6 +173,10 @@ Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie
 
 `POST /summaries/daily` con `{ "issuerRuc": "...", "referenceDate": "2026-08-20", "summaryCorrelative": 1 }`: carga las boletas persistidas de esa fecha, genera el XML `SummaryDocuments` (UBL 2.0, CustomizationID 1.1, ID `RC-YYYYMMDD-N`), lo firma, lo envía por `sendSummary`, hace polling de `getStatus` con el ticket (98=en proceso, 0=aceptado, 99=con errores) y marca las boletas ACCEPTED/REJECTED con el CDR del resumen. Verificado en vivo: RC-20260820-3 aceptado por el beta con 2 boletas.
 
+### Comunicación de baja (RA)
+
+`POST /voided-documents` con `{ "voidCorrelative": 1, "documents": [{ "invoiceId": "...", "reason": "Error en la operacion" }] }`: anula facturas/notas **ACCEPTED** (mismo día de emisión por comunicación), genera el XML `VoidedDocuments` (UBL 2.0, CustomizationID 1.0, ID `RA-YYYYMMDD-N`), firma, envía por `sendSummary`, resuelve el ticket y marca los documentos **VOIDED**. Boletas no van por RA (se anulan en el resumen diario con ConditionCode 3) → 422. Verificado en vivo: RA-20260820-2 aceptada por el beta, factura F001-2 anulada.
+
 ## Notas de crédito y débito (endpoints dev)
 
 Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND; ej. `"01"` = anulación / intereses por mora), `reasonDescription` opcional y `modifies` (factura referenciada):
@@ -188,5 +193,5 @@ Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND;
 
 ## Próximas etapas
 
-1. Comunicación de baja (RA) — misma infraestructura de ticket ya disponible.
+1. Casos tributarios: crédito con cuotas, exoneradas/inafectas, descuentos, detracciones.
 2. PDF; pago a crédito con cuotas; homologación hacia producción.

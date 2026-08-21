@@ -62,6 +62,20 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     return Promise.resolve();
   }
 
+  markVoided(id: string, outcome: SunatOutcome): Promise<void> {
+    const entry = this.entries.get(id);
+    if (entry) {
+      entry.status = outcome.cdr.accepted ? 'VOIDED' : entry.status;
+      entry.sunat = {
+        fileName: outcome.fileName,
+        responseCode: outcome.cdr.responseCode,
+        description: outcome.cdr.description,
+        notes: outcome.cdr.notes,
+      };
+    }
+    return Promise.resolve();
+  }
+
   findBoletasByIssueDate(
     issuerRuc: string,
     issueDate: string,

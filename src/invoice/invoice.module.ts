@@ -44,6 +44,13 @@ import type { SummaryXmlGenerator } from './application/use-cases/send-daily-sum
 import { UblSummaryXmlGenerator } from './infrastructure/xml/ubl-summary-xml-generator';
 import { InvoiceController } from './presentation/http/invoice.controller';
 import { SummaryController } from './presentation/http/summary.controller';
+import {
+  VOIDED_XML_GENERATOR,
+  VoidInvoicesUseCase,
+} from './application/use-cases/void-invoices.use-case';
+import type { VoidedXmlGenerator } from './application/use-cases/void-invoices.use-case';
+import { UblVoidedXmlGenerator } from './infrastructure/xml/ubl-voided-xml-generator';
+import { VoidedController } from './presentation/http/voided.controller';
 import { NoteController } from './presentation/http/note.controller';
 
 function buildGenerator(): UblInvoiceXmlGenerator {
@@ -66,7 +73,12 @@ function buildSunatSender(): SunatSoapClient {
 }
 
 @Module({
-  controllers: [InvoiceController, NoteController, SummaryController],
+  controllers: [
+    InvoiceController,
+    NoteController,
+    SummaryController,
+    VoidedController,
+  ],
   providers: [
     PrismaService,
     { provide: INVOICE_XML_SIGNER, useFactory: () => buildSigner() },
@@ -125,6 +137,26 @@ function buildSunatSender(): SunatSoapClient {
         signer: XmldsigInvoiceSigner,
       ) =>
         new SendDailySummaryUseCase(
+          repo,
+          generator,
+          signer,
+          new JszipInvoicePackager(),
+          buildSunatSender(),
+        ),
+    },
+    {
+      provide: VOIDED_XML_GENERATOR,
+      useFactory: (): VoidedXmlGenerator => new UblVoidedXmlGenerator(),
+    },
+    {
+      provide: VoidInvoicesUseCase,
+      inject: [INVOICE_REPOSITORY, VOIDED_XML_GENERATOR, INVOICE_XML_SIGNER],
+      useFactory: (
+        repo: InvoiceRepository,
+        generator: VoidedXmlGenerator,
+        signer: XmldsigInvoiceSigner,
+      ) =>
+        new VoidInvoicesUseCase(
           repo,
           generator,
           signer,

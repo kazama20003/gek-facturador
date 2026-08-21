@@ -1,7 +1,7 @@
 import { Invoice } from '../../domain/aggregates/invoice';
 import type { CdrResult } from './sunat-bill-sender.port';
 
-export type InvoiceStatus = 'ISSUED' | 'ACCEPTED' | 'REJECTED';
+export type InvoiceStatus = 'ISSUED' | 'ACCEPTED' | 'REJECTED' | 'VOIDED';
 
 export interface SunatOutcome {
   readonly fileName: string;
@@ -38,6 +38,8 @@ export interface InvoiceRepository {
     issuerRuc: string,
     issueDate: string,
   ): Promise<StoredInvoice[]>;
+  /** Marks a document VOIDED after SUNAT accepts the RA communication. */
+  markVoided(id: string, outcome: SunatOutcome): Promise<void>;
 }
 
 export const INVOICE_REPOSITORY = Symbol('InvoiceRepository');

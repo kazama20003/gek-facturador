@@ -71,6 +71,21 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     });
   }
 
+  async markVoided(id: string, outcome: SunatOutcome): Promise<void> {
+    if (!outcome.cdr.accepted) return;
+    await this.prisma.invoice.update({
+      where: { id },
+      data: {
+        status: 'VOIDED',
+        sunat_file_name: outcome.fileName,
+        cdr_response_code: outcome.cdr.responseCode,
+        cdr_description: outcome.cdr.description,
+        cdr_notes: [...outcome.cdr.notes],
+        cdr_zip_base64: outcome.cdrZipBase64,
+      },
+    });
+  }
+
   async findBoletasByIssueDate(
     issuerRuc: string,
     issueDate: string,
