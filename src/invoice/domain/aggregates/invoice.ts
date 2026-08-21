@@ -11,6 +11,7 @@ import { Money } from '../value-objects/money';
 import { Party } from '../value-objects/party';
 import { Quantity } from '../value-objects/quantity';
 import { InvoiceSeries } from '../value-objects/invoice-series';
+import { PaymentTerms } from '../value-objects/payment-terms';
 
 /** SUNAT catalog 01 — document types handled by this aggregate. */
 export const INVOICE_DOCUMENT_TYPE = '01';
@@ -36,6 +37,7 @@ export class Invoice {
     readonly currency: Currency,
     readonly issuer: Party,
     readonly customer: Party,
+    readonly paymentTerms: PaymentTerms,
   ) {}
 
   static create(params: {
@@ -47,6 +49,7 @@ export class Invoice {
     currency: Currency;
     issuer: Party;
     customer: Party;
+    paymentTerms?: PaymentTerms;
   }): Invoice {
     const documentType = params.documentType ?? INVOICE_DOCUMENT_TYPE;
 
@@ -77,6 +80,7 @@ export class Invoice {
       params.currency,
       params.issuer,
       params.customer,
+      params.paymentTerms ?? PaymentTerms.cash(),
     );
   }
 

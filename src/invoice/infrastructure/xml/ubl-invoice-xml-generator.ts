@@ -35,7 +35,7 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     this.buildSignature(root, doc);
     this.buildSupplier(root, doc);
     this.buildCustomer(root, doc);
-    this.buildPaymentTerms(root);
+    this.buildPaymentTerms(root, doc);
     this.buildTaxTotal(root, doc);
     this.buildMonetaryTotal(root, doc);
     for (const line of doc.lines) this.buildLine(root, doc, line);
@@ -178,10 +178,32 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
   }
 
   /** Forma de pago (mandatory since R.S. 193-2020; SUNAT error 3244 if absent). */
-  private buildPaymentTerms(root: XMLBuilder): void {
-    const terms = root.ele(NS.cac, 'PaymentTerms');
-    terms.ele(NS.cbc, 'ID').txt(CAT.paymentTerms.id);
-    terms.ele(NS.cbc, 'PaymentMeansID').txt(CAT.paymentTerms.cash);
+  private buildPaymentTerms(root: XMLBuilder, doc: UblInvoiceDocument): void {
+    if (!doc.payment.isCredit) {
+      const terms = root.ele(NS.cac, 'PaymentTerms');
+      terms.ele(NS.cbc, 'ID').txt(CAT.paymentTerms.id);
+      terms.ele(NS.cbc, 'PaymentMeansID').txt(CAT.paymentTerms.cash);
+      return;
+    }
+
+    const head = root.ele(NS.cac, 'PaymentTerms');
+    head.ele(NS.cbc, 'ID').txt(CAT.paymentTerms.id);
+    head.ele(NS.cbc, 'PaymentMeansID').txt(CAT.paymentTerms.credit);
+    head
+      .ele(NS.cbc, 'Amount')
+      .att('currencyID', doc.currency)
+      .txt(doc.payment.pendingAmount ?? doc.total);
+
+    for (const installment of doc.payment.installments) {
+      const cuota = root.ele(NS.cac, 'PaymentTerms');
+      cuota.ele(NS.cbc, 'ID').txt(CAT.paymentTerms.id);
+      cuota.ele(NS.cbc, 'PaymentMeansID').txt(installment.id);
+      cuota
+        .ele(NS.cbc, 'Amount')
+        .att('currencyID', doc.currency)
+        .txt(installment.amount);
+      cuota.ele(NS.cbc, 'PaymentDueDate').txt(installment.dueDate);
+    }
   }
 
   private buildTaxTotal(root: XMLBuilder, doc: UblInvoiceDocument): void {

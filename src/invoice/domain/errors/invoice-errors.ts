@@ -57,3 +57,5 @@ export class NoteNotFoundError extends DomainError {
 }
 
 export class InvalidIdentityDocumentError extends DomainError {}
+
+export class InvalidPaymentTermsError extends DomainError {}

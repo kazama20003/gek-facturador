@@ -9,6 +9,10 @@ import { InvoiceSeries } from '../../domain/value-objects/invoice-series';
 import { Money } from '../../domain/value-objects/money';
 import { IdentityDocument } from '../../domain/value-objects/identity-document';
 import { Party } from '../../domain/value-objects/party';
+import {
+  Installment,
+  PaymentTerms,
+} from '../../domain/value-objects/payment-terms';
 import { Quantity } from '../../domain/value-objects/quantity';
 import { Ruc } from '../../domain/value-objects/ruc';
 
@@ -43,6 +47,11 @@ export interface CreateInvoiceCommand {
     quantity: string;
     unitValue: string;
   }>;
+  /** Optional credit terms. Omitted → Contado (cash). */
+  credit?: {
+    pendingAmount: string;
+    installments: Array<{ amount: string; dueDate: string }>;
+  };
 }
 
 /** Immutable, JSON-serializable application result. */
@@ -144,6 +153,18 @@ export class CreateInvoiceUseCase {
           : IdentityDocument.ruc(command.customer.ruc ?? ''),
         businessName: command.customer.businessName,
       }),
+      paymentTerms: command.credit
+        ? PaymentTerms.credit({
+            pendingAmount: Money.create(command.credit.pendingAmount, currency),
+            installments: command.credit.installments.map((c, index) =>
+              Installment.create({
+                number: index + 1,
+                amount: Money.create(c.amount, currency),
+                dueDate: new Date(c.dueDate),
+              }),
+            ),
+          })
+        : PaymentTerms.cash(),
     });
 
     for (const item of command.items) {

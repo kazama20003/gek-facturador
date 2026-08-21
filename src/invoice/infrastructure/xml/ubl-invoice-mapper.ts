@@ -53,7 +53,18 @@ export interface UblInvoiceDocument {
   readonly igv: string;
   readonly saleValue: string;
   readonly total: string;
+  readonly payment: UblPayment;
   readonly lines: ReadonlyArray<UblLine>;
+}
+
+export interface UblPayment {
+  readonly isCredit: boolean;
+  readonly pendingAmount?: string;
+  readonly installments: ReadonlyArray<{
+    readonly id: string;
+    readonly amount: string;
+    readonly dueDate: string;
+  }>;
 }
 
 function isoDate(date: Date): string {
@@ -104,6 +115,15 @@ export class UblInvoiceMapper {
       igv: invoice.igv.toFixed(),
       saleValue: invoice.saleValue.toFixed(),
       total: invoice.total.toFixed(),
+      payment: {
+        isCredit: invoice.paymentTerms.isCredit,
+        pendingAmount: invoice.paymentTerms.pendingAmount?.toFixed(),
+        installments: invoice.paymentTerms.installments.map((i) => ({
+          id: i.id,
+          amount: i.amount.toFixed(),
+          dueDate: i.dueDate.toISOString().slice(0, 10),
+        })),
+      },
       lines: invoice.lines.map((line, index) => ({
         number: index + 1,
         quantity: line.quantity.toString(),

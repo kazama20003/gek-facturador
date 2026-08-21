@@ -17,7 +17,7 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
 | Persistencia PostgreSQL/Prisma (estado + CDR) | Listados/consultas avanzadas |
 | ZIP `RUC-01-SERIE-CORRELATIVO.zip` + `sendBill` (SOAP) + CDR parseado | Endpoint de producción certificado |
-| PEN y USD | Descuentos, anticipos, detracciones, exoneradas/inafectas |
+| PEN y USD; **pago Contado o Crédito con cuotas** | Descuentos, anticipos, detracciones, exoneradas/inafectas |
 
 > Solo entorno **beta/homologación** de SUNAT. Emitec no es (todavía) un PSE ni una integración certificada.
 

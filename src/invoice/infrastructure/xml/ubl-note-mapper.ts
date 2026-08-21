@@ -36,6 +36,8 @@ export class UblNoteMapper {
     return {
       type: note.type,
       documentType: note.documentType,
+      // Notes carry no payment terms; the field exists only to share the projection shape.
+      payment: { isCredit: false, installments: [] },
       id: `${note.series.toString()}-${note.correlative.toNumber()}`,
       issueDate: isoDate(note.issueDate),
       issueTime: isoTime(note.issueDate),

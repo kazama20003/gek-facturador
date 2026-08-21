@@ -16,6 +16,27 @@ import {
 
 const DECIMAL_STRING = /^\d+(\.\d+)?$/;
 
+export class InstallmentDto {
+  @Matches(DECIMAL_STRING, { message: 'amount must be a decimal string' })
+  amount!: string;
+
+  @IsDateString()
+  dueDate!: string;
+}
+
+export class CreditTermsDto {
+  @Matches(DECIMAL_STRING, {
+    message: 'pendingAmount must be a decimal string',
+  })
+  pendingAmount!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => InstallmentDto)
+  installments!: InstallmentDto[];
+}
+
 export class PartyDto {
   @IsString()
   ruc!: string;
@@ -131,4 +152,9 @@ export class CreateInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)
   items!: CreateInvoiceItemDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreditTermsDto)
+  credit?: CreditTermsDto;
 }

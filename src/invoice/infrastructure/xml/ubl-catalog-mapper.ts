@@ -51,10 +51,11 @@ export const SUNAT_CATALOGS = {
   legend: {
     amountInWords: '1000',
   },
-  /** Forma de pago (R.S. 193-2020, error 3244 if missing). Cash only for now. */
+  /** Forma de pago (R.S. 193-2020, error 3244 if missing). */
   paymentTerms: {
     id: 'FormaPago',
     cash: 'Contado',
+    credit: 'Credito',
   },
   currency: {
     listID: 'ISO 4217 Alpha',
