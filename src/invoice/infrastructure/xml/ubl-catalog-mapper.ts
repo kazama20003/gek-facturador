@@ -40,12 +40,20 @@ export const SUNAT_CATALOGS = {
     listName: 'Afectacion del IGV',
     listURI: 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo07',
   },
-  /** Catalog 16 — price type. 01 = unit price including IGV. */
+  /** Catalog 16 — price type. 01 = unit price incl. IGV, 02 = referential value (free). */
   priceType: {
     unitPriceIncludingIgv: '01',
+    referentialValue: '02',
     listName: 'Tipo de Precio',
     listAgencyName: 'PE:SUNAT',
     listURI: 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16',
+  },
+  /** Catalog 53 — allowance/charge reason. 02 = global discount affecting the base. */
+  discount: {
+    globalAffectsBase: '02',
+    listAgencyName: 'PE:SUNAT',
+    listName: 'Cargo/descuento',
+    listURI: 'urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo53',
   },
   /** Catalog 52 — legends. 1000 = amount in words. */
   legend: {

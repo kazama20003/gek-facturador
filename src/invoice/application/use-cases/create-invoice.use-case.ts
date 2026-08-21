@@ -47,9 +47,20 @@ export interface CreateInvoiceCommand {
     unitCode: string;
     quantity: string;
     unitValue: string;
-    /** SUNAT catalog 07: '10' taxed (default) | '20' exonerated | '30' unaffected. */
+    /** SUNAT catalog 07: '10' taxed (default) | '20' exon. | '30' unaffected | '11' free. */
     igvAffectationCode?: string;
+    /** Optional line discount amount (decimal string). */
+    discount?: string;
   }>;
+  /** Optional global discount (decimal string) — reduces the taxed base. */
+  globalDiscount?: string;
+  /** Optional SPOT detraction (catalog 54). */
+  detraction?: {
+    code: string;
+    percent: string;
+    account: string;
+    operationType?: string;
+  };
   /** Optional credit terms. Omitted → Contado (cash). */
   credit?: {
     pendingAmount: string;
@@ -180,7 +191,20 @@ export class CreateInvoiceUseCase {
         affectation: item.igvAffectationCode
           ? IgvAffectationType.fromCode(item.igvAffectationCode)
           : IgvAffectationType.TAXED_OPERATION,
+        discount: item.discount
+          ? Money.create(item.discount, currency)
+          : undefined,
       });
+    }
+
+    if (command.globalDiscount) {
+      invoice.applyGlobalDiscount(
+        Money.create(command.globalDiscount, currency),
+      );
+    }
+
+    if (command.detraction) {
+      invoice.applyDetraction(command.detraction);
     }
 
     invoice.issue();

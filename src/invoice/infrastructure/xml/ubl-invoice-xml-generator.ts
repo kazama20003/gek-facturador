@@ -35,7 +35,10 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     this.buildSignature(root, doc);
     this.buildSupplier(root, doc);
     this.buildCustomer(root, doc);
+    if (doc.detraction) this.buildDetractionPaymentMeans(root, doc);
     this.buildPaymentTerms(root, doc);
+    if (doc.detraction) this.buildDetractionTerms(root, doc);
+    if (doc.globalDiscount !== '0.00') this.buildGlobalDiscount(root, doc);
     this.buildTaxTotal(root, doc);
     this.buildMonetaryTotal(root, doc);
     for (const line of doc.lines) this.buildLine(root, doc, line);
@@ -62,13 +65,19 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
       .att('listAgencyName', CAT.documentType.listAgencyName)
       .att('listName', CAT.documentType.listName)
       .att('listURI', CAT.documentType.listURI)
-      .att('listID', CAT.operationType.internalSale)
+      .att('listID', doc.operationType)
       .att('listSchemeURI', CAT.operationType.listSchemeURI)
       .txt(doc.documentType);
     root
       .ele(NS.cbc, 'Note')
       .att('languageLocaleID', CAT.legend.amountInWords)
       .txt(doc.amountInWords);
+    if (doc.detraction) {
+      root
+        .ele(NS.cbc, 'Note')
+        .att('languageLocaleID', '2006')
+        .txt('Operacion sujeta a detraccion');
+    }
     root
       .ele(NS.cbc, 'DocumentCurrencyCode')
       .att('listID', CAT.currency.listID)
@@ -229,8 +238,59 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     }
   }
 
+  /** Detracción — cuenta del Banco de la Nación (PaymentMeansCode 999). */
+  private buildDetractionPaymentMeans(
+    root: XMLBuilder,
+    doc: UblInvoiceDocument,
+  ): void {
+    const means = root.ele(NS.cac, 'PaymentMeans');
+    means.ele(NS.cbc, 'ID').txt('Detraccion');
+    means.ele(NS.cbc, 'PaymentMeansCode').txt('999');
+    means
+      .ele(NS.cac, 'PayeeFinancialAccount')
+      .ele(NS.cbc, 'ID')
+      .txt(doc.detraction!.account);
+  }
+
+  /** Detracción — cac:PaymentTerms con código de catálogo 54, porcentaje y monto. */
+  private buildDetractionTerms(
+    root: XMLBuilder,
+    doc: UblInvoiceDocument,
+  ): void {
+    const terms = root.ele(NS.cac, 'PaymentTerms');
+    terms.ele(NS.cbc, 'ID').txt('Detraccion');
+    terms.ele(NS.cbc, 'PaymentMeansID').txt(doc.detraction!.code);
+    terms.ele(NS.cbc, 'PaymentPercent').txt(doc.detraction!.percent);
+    terms
+      .ele(NS.cbc, 'Amount')
+      .att('currencyID', doc.currency)
+      .txt(doc.detraction!.amount);
+  }
+
+  /** Descuento global (catálogo 53 código 02): cac:AllowanceCharge a nivel documento. */
+  private buildGlobalDiscount(root: XMLBuilder, doc: UblInvoiceDocument): void {
+    const allowance = root.ele(NS.cac, 'AllowanceCharge');
+    allowance.ele(NS.cbc, 'ChargeIndicator').txt('false');
+    allowance
+      .ele(NS.cbc, 'AllowanceChargeReasonCode')
+      .att('listAgencyName', CAT.discount.listAgencyName)
+      .att('listName', CAT.discount.listName)
+      .att('listURI', CAT.discount.listURI)
+      .txt(CAT.discount.globalAffectsBase);
+    allowance
+      .ele(NS.cbc, 'Amount')
+      .att('currencyID', doc.currency)
+      .txt(doc.globalDiscount);
+    allowance
+      .ele(NS.cbc, 'BaseAmount')
+      .att('currencyID', doc.currency)
+      .txt(doc.lineExtensionTotal);
+  }
+
   private buildMonetaryTotal(root: XMLBuilder, doc: UblInvoiceDocument): void {
     const total = root.ele(NS.cac, 'LegalMonetaryTotal');
+    // Global discount code 02 affects the base, so LineExtensionAmount is already net
+    // and AllowanceTotalAmount is not emitted (that field is only for code 03).
     total
       .ele(NS.cbc, 'LineExtensionAmount')
       .att('currencyID', doc.currency)
@@ -275,7 +335,26 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
       .att('listName', CAT.priceType.listName)
       .att('listAgencyName', CAT.priceType.listAgencyName)
       .att('listURI', CAT.priceType.listURI)
-      .txt(CAT.priceType.unitPriceIncludingIgv);
+      .txt(line.priceTypeCode);
+
+    if (line.discount !== '0.00') {
+      const allowance = invoiceLine.ele(NS.cac, 'AllowanceCharge');
+      allowance.ele(NS.cbc, 'ChargeIndicator').txt('false');
+      allowance
+        .ele(NS.cbc, 'AllowanceChargeReasonCode')
+        .att('listAgencyName', CAT.discount.listAgencyName)
+        .att('listName', CAT.discount.listName)
+        .att('listURI', CAT.discount.listURI)
+        .txt('00');
+      allowance
+        .ele(NS.cbc, 'Amount')
+        .att('currencyID', doc.currency)
+        .txt(line.discount);
+      allowance
+        .ele(NS.cbc, 'BaseAmount')
+        .att('currencyID', doc.currency)
+        .txt(line.discountBase);
+    }
 
     const taxTotal = invoiceLine.ele(NS.cac, 'TaxTotal');
     taxTotal
@@ -303,6 +382,13 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
 
     const item = invoiceLine.ele(NS.cac, 'Item');
     item.ele(NS.cbc, 'Description').txt(line.description);
+    if (doc.detraction) {
+      // SUNAT requires the good/service code (catalog 54) on detraction lines.
+      item
+        .ele(NS.cac, 'CommodityClassification')
+        .ele(NS.cbc, 'ItemClassificationCode')
+        .txt(doc.detraction.code);
+    }
     if (line.code) {
       item
         .ele(NS.cac, 'SellersItemIdentification')
@@ -313,6 +399,6 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
       .ele(NS.cac, 'Price')
       .ele(NS.cbc, 'PriceAmount')
       .att('currencyID', doc.currency)
-      .txt(line.unitValue);
+      .txt(line.isFree ? '0.00' : line.unitValue);
   }
 }

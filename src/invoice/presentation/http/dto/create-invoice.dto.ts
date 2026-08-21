@@ -118,8 +118,32 @@ export class CreateInvoiceItemDto {
   unitValue!: string;
 
   @IsOptional()
-  @IsIn(['10', '20', '30'])
+  @IsIn(['10', '20', '30', '11'])
   igvAffectationCode?: string;
+
+  @IsOptional()
+  @Matches(DECIMAL_STRING, { message: 'discount must be a decimal string' })
+  discount?: string;
+}
+
+export class DetractionDto {
+  @Matches(/^\d{3}$/, {
+    message: 'detraction code must be 3 digits (catalog 54)',
+  })
+  code!: string;
+
+  @Matches(DECIMAL_STRING, { message: 'percent must be a decimal string' })
+  percent!: string;
+
+  @IsString()
+  @MinLength(1)
+  account!: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}$/, {
+    message: 'operationType must be 4 digits (catalog 51)',
+  })
+  operationType?: string;
 }
 
 /** HTTP input shape only — tax rules and calculations live in the domain. */
@@ -156,6 +180,17 @@ export class CreateInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)
   items!: CreateInvoiceItemDto[];
+
+  @IsOptional()
+  @Matches(DECIMAL_STRING, {
+    message: 'globalDiscount must be a decimal string',
+  })
+  globalDiscount?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DetractionDto)
+  detraction?: DetractionDto;
 
   @IsOptional()
   @ValidateNested()

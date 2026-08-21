@@ -49,11 +49,25 @@ export class IgvAffectationType {
     },
   );
 
+  /** Transferencia gratuita gravada — code 11, referential IGV (catalog 05: 9996 GRA). */
+  static readonly FREE_TAXED = new IgvAffectationType(
+    '11',
+    'Free taxed transfer',
+    true,
+    {
+      id: '9996',
+      name: 'GRA',
+      internationalCode: 'FRE',
+    },
+    true,
+  );
+
   private constructor(
     readonly sunatCode: string,
     readonly description: string,
     readonly appliesIgv: boolean,
     readonly taxScheme: TaxScheme,
+    readonly isFree: boolean = false,
   ) {}
 
   static fromCode(code: string): IgvAffectationType {
@@ -61,10 +75,11 @@ export class IgvAffectationType {
       IgvAffectationType.TAXED_OPERATION,
       IgvAffectationType.EXONERATED,
       IgvAffectationType.UNAFFECTED,
+      IgvAffectationType.FREE_TAXED,
     ].find((a) => a.sunatCode === code);
     if (!match) {
       throw new InvalidInvoiceItemError(
-        `Unsupported IGV affectation code "${code}" (supported: 10, 20, 30).`,
+        `Unsupported IGV affectation code "${code}" (supported: 10, 20, 30, 11).`,
       );
     }
     return match;

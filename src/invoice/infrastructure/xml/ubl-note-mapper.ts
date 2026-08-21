@@ -37,6 +37,7 @@ export class UblNoteMapper {
     return {
       type: note.type,
       documentType: note.documentType,
+      operationType: '0101',
       // Notes carry no payment terms; the field exists only to share the projection shape.
       payment: { isCredit: false, installments: [] },
       id: `${note.series.toString()}-${note.correlative.toNumber()}`,
@@ -69,6 +70,10 @@ export class UblNoteMapper {
       taxableAmount: note.taxableAmount.toFixed(),
       exoneratedAmount: note.exoneratedAmount.toFixed(),
       unaffectedAmount: note.unaffectedAmount.toFixed(),
+      freeAmount: '0.00',
+      freeIgv: '0.00',
+      globalDiscount: '0.00',
+      lineExtensionTotal: note.saleValue.toFixed(),
       igv: note.igv.toFixed(),
       saleValue: note.saleValue.toFixed(),
       total: note.total.toFixed(),
@@ -101,6 +106,10 @@ export class UblNoteMapper {
         description: line.description,
         code: line.code,
         unitValue: line.unitValue.toFixed(),
+        priceTypeCode: '01',
+        isFree: false,
+        discount: '0.00',
+        discountBase: '0.00',
       })),
     };
   }

@@ -1,16 +1,19 @@
 import { InvoiceItem } from '../entities/invoice-item';
 import {
   CurrencyMismatchError,
+  InvalidInvoiceItemError,
   InvalidInvoiceSeriesError,
   InvalidPartyError,
   InvoiceWithoutItemsError,
 } from '../errors/invoice-errors';
+import { IGV_RATE } from '../services/igv';
 import { Correlative } from '../value-objects/correlative';
 import { Currency } from '../value-objects/currency';
 import { Money } from '../value-objects/money';
 import { Party } from '../value-objects/party';
 import { Quantity } from '../value-objects/quantity';
 import { InvoiceSeries } from '../value-objects/invoice-series';
+import { Detraction } from '../value-objects/detraction';
 import { IgvAffectationType } from '../value-objects/igv-affectation-type';
 import { PaymentTerms } from '../value-objects/payment-terms';
 
@@ -28,6 +31,8 @@ export type SaleDocumentType =
  */
 export class Invoice {
   private readonly items: InvoiceItem[] = [];
+  private _globalDiscount?: Money;
+  private _detraction?: Detraction;
 
   private constructor(
     readonly id: string,
@@ -105,6 +110,7 @@ export class Invoice {
     quantity: Quantity;
     unitValue: Money;
     affectation: IgvAffectationType;
+    discount?: Money;
   }): void {
     if (params.unitValue.currency !== this.currency) {
       throw new CurrencyMismatchError(
@@ -112,6 +118,41 @@ export class Invoice {
       );
     }
     this.items.push(InvoiceItem.create(params));
+  }
+
+  /**
+   * Global discount (SUNAT catalog 53 code 02): reduces the taxed base and
+   * therefore the IGV. Must not exceed the raw taxed base.
+   */
+  applyGlobalDiscount(amount: Money): void {
+    if (amount.currency !== this.currency) {
+      throw new CurrencyMismatchError(
+        `Discount currency ${amount.currency} does not match invoice currency ${this.currency}.`,
+      );
+    }
+    if (amount.toFixed() > this.rawTaxedBase.toFixed()) {
+      throw new InvalidInvoiceItemError(
+        `Global discount (${amount.toFixed()}) cannot exceed the taxed base (${this.rawTaxedBase.toFixed()}).`,
+      );
+    }
+    this._globalDiscount = amount;
+  }
+
+  get globalDiscount(): Money {
+    return this._globalDiscount ?? Money.zero(this.currency);
+  }
+
+  /** Attaches a SPOT detraction (catalog 54). Amount is derived from the total. */
+  applyDetraction(params: {
+    code: string;
+    percent: string;
+    account: string;
+  }): void {
+    this._detraction = Detraction.create({ ...params, total: this.total });
+  }
+
+  get detraction(): Detraction | undefined {
+    return this._detraction;
   }
 
   /** Validates issuing invariants. Kept minimal: no SUNAT states yet. */
@@ -139,11 +180,16 @@ export class Invoice {
       );
   }
 
-  /** Total de operaciones gravadas (base imponible de líneas afectas). */
-  get taxableAmount(): Money {
+  /** Taxed base before the global discount (sum of net taxed lines). */
+  private get rawTaxedBase(): Money {
     return this.sumWhere(
       (i) => i.affectation === IgvAffectationType.TAXED_OPERATION,
     );
+  }
+
+  /** Total de operaciones gravadas (base imponible afecta, neta del descuento global). */
+  get taxableAmount(): Money {
+    return this.rawTaxedBase.subtract(this.globalDiscount);
   }
 
   /** Total de operaciones exoneradas (código 20). */
@@ -160,22 +206,40 @@ export class Invoice {
     );
   }
 
+  /** Valor referencial total de líneas gratuitas (código 11). */
+  get freeAmount(): Money {
+    return this.items
+      .filter((i) => i.isFree)
+      .reduce((acc, i) => acc.add(i.referenceValue), Money.zero(this.currency));
+  }
+
+  /** IGV referencial de las líneas gratuitas (no se cobra). */
+  get freeIgv(): Money {
+    return this.items
+      .filter((i) => i.isFree)
+      .reduce((acc, i) => acc.add(i.igv), Money.zero(this.currency));
+  }
+
+  /** IGV de las operaciones onerosas (excluye gratuitas), sobre la base con descuento. */
   get igv(): Money {
-    return this.items.reduce(
-      (acc, item) => acc.add(item.igv),
-      Money.zero(this.currency),
-    );
+    return this.taxableAmount.multiplyBy(IGV_RATE);
   }
 
-  /** Valor de venta — suma de todas las bases (gravada + exonerada + inafecta). */
+  /** Suma de bases de línea (antes del descuento global) — LineExtensionAmount del total. */
+  get lineExtensionTotal(): Money {
+    return this.rawTaxedBase
+      .add(this.exoneratedAmount)
+      .add(this.unaffectedAmount);
+  }
+
+  /** Valor de venta — bases onerosas (gravada con descuento + exonerada + inafecta). */
   get saleValue(): Money {
-    return this.items.reduce(
-      (acc, item) => acc.add(item.taxableAmount),
-      Money.zero(this.currency),
-    );
+    return this.taxableAmount
+      .add(this.exoneratedAmount)
+      .add(this.unaffectedAmount);
   }
 
-  /** Importe total — valor de venta más IGV. */
+  /** Importe total a pagar — valor de venta más IGV (las gratuitas no suman). */
   get total(): Money {
     return this.saleValue.add(this.igv);
   }

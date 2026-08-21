@@ -17,8 +17,10 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
 | Persistencia PostgreSQL/Prisma (estado + CDR) | Listados/consultas avanzadas |
 | ZIP `RUC-01-SERIE-CORRELATIVO.zip` + `sendBill` (SOAP) + CDR parseado | Endpoint de producción certificado |
-| PEN y USD; pago Contado o Crédito con cuotas | Descuentos, anticipos, detracciones |
-| Afectación IGV: **gravada (10), exonerada (20), inafecta (30)** | Operaciones gratuitas (código 11+) |
+| Descuentos por ítem y globales (cat. 53) | Anticipos |
+| Detracciones (cat. 54, tipo operación 51) | Guías de remisión |
+| Operaciones gratuitas (código 11, tributo 9996) | Percepciones |
+| Afectación IGV: gravada (10), exonerada (20), inafecta (30), gratuita (11) | Percepciones/anticipos |
 
 > Solo entorno **beta/homologación** de SUNAT. Emitec no es (todavía) un PSE ni una integración certificada.
 

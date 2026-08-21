@@ -23,6 +23,11 @@ function buildTaxSubtotals(invoice: Invoice): UblTaxSubtotal[] {
         tax: '0.00',
         type: IgvAffectationType.UNAFFECTED,
       },
+      {
+        base: invoice.freeAmount.toFixed(),
+        tax: invoice.freeIgv.toFixed(),
+        type: IgvAffectationType.FREE_TAXED,
+      },
     ];
   return groups
     .filter((g) => g.base !== '0.00')
@@ -61,7 +66,15 @@ export interface UblLine {
   };
   readonly description: string;
   readonly code?: string;
+  /** Net unit value used in cac:Price (after line discount). */
   readonly unitValue: string;
+  /** '01' unit price incl. IGV (onerous) | '02' referential value (free). */
+  readonly priceTypeCode: string;
+  readonly isFree: boolean;
+  /** Line discount amount ('0.00' if none). */
+  readonly discount: string;
+  /** Gross line amount (unitValue × quantity) — AllowanceCharge base. */
+  readonly discountBase: string;
 }
 
 /** A tax subtotal grouped by affectation category, for cac:TaxTotal. */
@@ -83,6 +96,8 @@ export interface UblInvoiceDocument {
   readonly id: string;
   /** SUNAT catalog 01: '01' factura, '03' boleta. */
   readonly documentType: string;
+  /** SUNAT catalog 51 operation type (0101 internal sale, 1001+ detraction). */
+  readonly operationType: string;
   readonly issueDate: string;
   readonly issueTime: string;
   readonly currency: string;
@@ -102,11 +117,21 @@ export interface UblInvoiceDocument {
   readonly taxableAmount: string;
   readonly exoneratedAmount: string;
   readonly unaffectedAmount: string;
+  readonly freeAmount: string;
+  readonly freeIgv: string;
+  readonly globalDiscount: string;
+  readonly lineExtensionTotal: string;
   readonly igv: string;
   readonly saleValue: string;
   readonly total: string;
   readonly taxSubtotals: ReadonlyArray<UblTaxSubtotal>;
   readonly payment: UblPayment;
+  readonly detraction?: {
+    readonly code: string;
+    readonly percent: string;
+    readonly account: string;
+    readonly amount: string;
+  };
   readonly lines: ReadonlyArray<UblLine>;
 }
 
@@ -143,6 +168,9 @@ export class UblInvoiceMapper {
     return {
       id: `${invoice.series.toString()}-${invoice.correlative.toNumber()}`,
       documentType: invoice.documentType,
+      operationType: invoice.detraction
+        ? invoice.detraction.operationType
+        : '0101',
       issueDate: isoDate(invoice.issueDate),
       issueTime: isoTime(invoice.issueDate),
       currency: invoice.currency,
@@ -167,10 +195,22 @@ export class UblInvoiceMapper {
       taxableAmount: invoice.taxableAmount.toFixed(),
       exoneratedAmount: invoice.exoneratedAmount.toFixed(),
       unaffectedAmount: invoice.unaffectedAmount.toFixed(),
+      freeAmount: invoice.freeAmount.toFixed(),
+      freeIgv: invoice.freeIgv.toFixed(),
+      globalDiscount: invoice.globalDiscount.toFixed(),
+      lineExtensionTotal: invoice.lineExtensionTotal.toFixed(),
       igv: invoice.igv.toFixed(),
       saleValue: invoice.saleValue.toFixed(),
       total: invoice.total.toFixed(),
       taxSubtotals: buildTaxSubtotals(invoice),
+      detraction: invoice.detraction
+        ? {
+            code: invoice.detraction.code,
+            percent: invoice.detraction.percent,
+            account: invoice.detraction.account,
+            amount: invoice.detraction.amount.toFixed(),
+          }
+        : undefined,
       payment: {
         isCredit: invoice.paymentTerms.isCredit,
         pendingAmount: invoice.paymentTerms.pendingAmount?.toFixed(),
@@ -184,8 +224,18 @@ export class UblInvoiceMapper {
         number: index + 1,
         quantity: line.quantity.toString(),
         unitCode: line.unitCode,
-        taxableAmount: line.taxableAmount.toFixed(),
-        unitPriceWithIgv: line.unitPrice.toFixed(),
+        // Free lines report their referential base in LineExtensionAmount.
+        taxableAmount: (line.isFree
+          ? line.referenceValue
+          : line.taxableAmount
+        ).toFixed(),
+        // Net unit value with IGV, so Price × qty reconciles with LineExtensionAmount.
+        unitPriceWithIgv: line.isFree
+          ? line.referenceValue.toFixed()
+          : line.taxableAmount
+              .divideBy(line.quantity)
+              .multiplyBy('1.18')
+              .toFixed(),
         igvAmount: line.igv.toFixed(),
         igvPercent: line.affectation.isTaxed() ? IGV_PERCENT : '0.00',
         affectationCode: igvAffectationCode(line.affectation),
@@ -196,7 +246,12 @@ export class UblInvoiceMapper {
         },
         description: line.description,
         code: line.code,
+        // Gross unit value for cac:Price (SUNAT rule 3271); discount is separate.
         unitValue: line.unitValue.toFixed(),
+        priceTypeCode: line.isFree ? '02' : '01',
+        isFree: line.isFree,
+        discount: line.discount.toFixed(),
+        discountBase: line.unitValue.multiplyBy(line.quantity).toFixed(),
       })),
     };
   }

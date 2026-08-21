@@ -81,6 +81,12 @@ export class Money {
     return new Money(Money.round(this.amount.times(value)), this.currency);
   }
 
+  /** Divides by a quantity or a plain decimal factor. */
+  divideBy(factor: Quantity | string): Money {
+    const value = factor instanceof Quantity ? factor.toString() : factor;
+    return new Money(Money.round(this.amount.div(value)), this.currency);
+  }
+
   equals(other: Money): boolean {
     return this.currency === other.currency && this.amount.equals(other.amount);
   }
