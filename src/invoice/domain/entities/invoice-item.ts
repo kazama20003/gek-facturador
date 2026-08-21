@@ -25,12 +25,27 @@ export class InvoiceItem {
     readonly total: Money,
   ) {}
 
+  /** Backwards-compatible helper: a taxed (10) line. */
   static createTaxed(params: {
     code?: string;
     description: string;
     unitCode: string;
     quantity: Quantity;
     unitValue: Money;
+  }): InvoiceItem {
+    return InvoiceItem.create({
+      ...params,
+      affectation: IgvAffectationType.TAXED_OPERATION,
+    });
+  }
+
+  static create(params: {
+    code?: string;
+    description: string;
+    unitCode: string;
+    quantity: Quantity;
+    unitValue: Money;
+    affectation: IgvAffectationType;
   }): InvoiceItem {
     const description = params.description?.trim() ?? '';
     if (description.length === 0) {
@@ -44,8 +59,14 @@ export class InvoiceItem {
     }
 
     const taxableAmount = params.unitValue.multiplyBy(params.quantity);
-    const igv = taxableAmount.multiplyBy(IGV_RATE);
-    const unitPrice = params.unitValue.multiplyBy(IGV_MULTIPLIER);
+    const applies = params.affectation.isTaxed();
+    // Exonerated/unaffected lines carry no IGV; the unit price equals the net value.
+    const igv = applies
+      ? taxableAmount.multiplyBy(IGV_RATE)
+      : Money.zero(taxableAmount.currency);
+    const unitPrice = applies
+      ? params.unitValue.multiplyBy(IGV_MULTIPLIER)
+      : params.unitValue;
     const total = taxableAmount.add(igv);
 
     return new InvoiceItem(
@@ -54,7 +75,7 @@ export class InvoiceItem {
       unitCode,
       params.quantity,
       params.unitValue,
-      IgvAffectationType.TAXED_OPERATION,
+      params.affectation,
       taxableAmount,
       igv,
       unitPrice,

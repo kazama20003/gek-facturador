@@ -1,7 +1,41 @@
 import { Invoice } from '../../domain/aggregates/invoice';
 import { InvalidPartyError } from '../../domain/errors/invoice-errors';
+import { IgvAffectationType } from '../../domain/value-objects/igv-affectation-type';
 import type { AmountInWordsConverter } from '../../application/ports/amount-in-words-converter.port';
 import { igvAffectationCode, IGV_PERCENT } from './ubl-catalog-mapper';
+
+/** One cac:TaxTotal subtotal per affectation category present in the invoice. */
+function buildTaxSubtotals(invoice: Invoice): UblTaxSubtotal[] {
+  const groups: Array<{ base: string; tax: string; type: IgvAffectationType }> =
+    [
+      {
+        base: invoice.taxableAmount.toFixed(),
+        tax: invoice.igv.toFixed(),
+        type: IgvAffectationType.TAXED_OPERATION,
+      },
+      {
+        base: invoice.exoneratedAmount.toFixed(),
+        tax: '0.00',
+        type: IgvAffectationType.EXONERATED,
+      },
+      {
+        base: invoice.unaffectedAmount.toFixed(),
+        tax: '0.00',
+        type: IgvAffectationType.UNAFFECTED,
+      },
+    ];
+  return groups
+    .filter((g) => g.base !== '0.00')
+    .map((g) => ({
+      taxableAmount: g.base,
+      taxAmount: g.tax,
+      tax: {
+        id: g.type.taxScheme.id,
+        name: g.type.taxScheme.name,
+        internationalCode: g.type.taxScheme.internationalCode,
+      },
+    }));
+}
 
 export interface UblAddress {
   readonly ubigeo: string;
@@ -20,9 +54,25 @@ export interface UblLine {
   readonly igvAmount: string;
   readonly igvPercent: string;
   readonly affectationCode: string;
+  readonly tax: {
+    readonly id: string;
+    readonly name: string;
+    readonly internationalCode: string;
+  };
   readonly description: string;
   readonly code?: string;
   readonly unitValue: string;
+}
+
+/** A tax subtotal grouped by affectation category, for cac:TaxTotal. */
+export interface UblTaxSubtotal {
+  readonly taxableAmount: string;
+  readonly taxAmount: string;
+  readonly tax: {
+    readonly id: string;
+    readonly name: string;
+    readonly internationalCode: string;
+  };
 }
 
 /**
@@ -50,9 +100,12 @@ export interface UblInvoiceDocument {
     readonly businessName: string;
   };
   readonly taxableAmount: string;
+  readonly exoneratedAmount: string;
+  readonly unaffectedAmount: string;
   readonly igv: string;
   readonly saleValue: string;
   readonly total: string;
+  readonly taxSubtotals: ReadonlyArray<UblTaxSubtotal>;
   readonly payment: UblPayment;
   readonly lines: ReadonlyArray<UblLine>;
 }
@@ -112,9 +165,12 @@ export class UblInvoiceMapper {
         businessName: invoice.customer.businessName,
       },
       taxableAmount: invoice.taxableAmount.toFixed(),
+      exoneratedAmount: invoice.exoneratedAmount.toFixed(),
+      unaffectedAmount: invoice.unaffectedAmount.toFixed(),
       igv: invoice.igv.toFixed(),
       saleValue: invoice.saleValue.toFixed(),
       total: invoice.total.toFixed(),
+      taxSubtotals: buildTaxSubtotals(invoice),
       payment: {
         isCredit: invoice.paymentTerms.isCredit,
         pendingAmount: invoice.paymentTerms.pendingAmount?.toFixed(),
@@ -131,8 +187,13 @@ export class UblInvoiceMapper {
         taxableAmount: line.taxableAmount.toFixed(),
         unitPriceWithIgv: line.unitPrice.toFixed(),
         igvAmount: line.igv.toFixed(),
-        igvPercent: IGV_PERCENT,
+        igvPercent: line.affectation.isTaxed() ? IGV_PERCENT : '0.00',
         affectationCode: igvAffectationCode(line.affectation),
+        tax: {
+          id: line.affectation.taxScheme.id,
+          name: line.affectation.taxScheme.name,
+          internationalCode: line.affectation.taxScheme.internationalCode,
+        },
         description: line.description,
         code: line.code,
         unitValue: line.unitValue.toFixed(),

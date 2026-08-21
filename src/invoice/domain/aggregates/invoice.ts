@@ -11,6 +11,7 @@ import { Money } from '../value-objects/money';
 import { Party } from '../value-objects/party';
 import { Quantity } from '../value-objects/quantity';
 import { InvoiceSeries } from '../value-objects/invoice-series';
+import { IgvAffectationType } from '../value-objects/igv-affectation-type';
 import { PaymentTerms } from '../value-objects/payment-terms';
 
 /** SUNAT catalog 01 — document types handled by this aggregate. */
@@ -91,12 +92,26 @@ export class Invoice {
     quantity: Quantity;
     unitValue: Money;
   }): void {
+    this.addItem({
+      ...params,
+      affectation: IgvAffectationType.TAXED_OPERATION,
+    });
+  }
+
+  addItem(params: {
+    code?: string;
+    description: string;
+    unitCode: string;
+    quantity: Quantity;
+    unitValue: Money;
+    affectation: IgvAffectationType;
+  }): void {
     if (params.unitValue.currency !== this.currency) {
       throw new CurrencyMismatchError(
         `Item currency ${params.unitValue.currency} does not match invoice currency ${this.currency}.`,
       );
     }
-    this.items.push(InvoiceItem.createTaxed(params));
+    this.items.push(InvoiceItem.create(params));
   }
 
   /** Validates issuing invariants. Kept minimal: no SUNAT states yet. */
@@ -115,11 +130,33 @@ export class Invoice {
     return [...this.items];
   }
 
-  /** Sum of taxable bases (total de operaciones gravadas). */
+  private sumWhere(predicate: (item: InvoiceItem) => boolean): Money {
+    return this.items
+      .filter(predicate)
+      .reduce(
+        (acc, item) => acc.add(item.taxableAmount),
+        Money.zero(this.currency),
+      );
+  }
+
+  /** Total de operaciones gravadas (base imponible de líneas afectas). */
   get taxableAmount(): Money {
-    return this.items.reduce(
-      (acc, item) => acc.add(item.taxableAmount),
-      Money.zero(this.currency),
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.TAXED_OPERATION,
+    );
+  }
+
+  /** Total de operaciones exoneradas (código 20). */
+  get exoneratedAmount(): Money {
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.EXONERATED,
+    );
+  }
+
+  /** Total de operaciones inafectas (código 30). */
+  get unaffectedAmount(): Money {
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.UNAFFECTED,
     );
   }
 
@@ -130,13 +167,16 @@ export class Invoice {
     );
   }
 
-  /** Valor de venta — equals the taxable amount for a purely taxed invoice. */
+  /** Valor de venta — suma de todas las bases (gravada + exonerada + inafecta). */
   get saleValue(): Money {
-    return this.taxableAmount;
+    return this.items.reduce(
+      (acc, item) => acc.add(item.taxableAmount),
+      Money.zero(this.currency),
+    );
   }
 
-  /** Importe total — taxable amount plus IGV. */
+  /** Importe total — valor de venta más IGV. */
   get total(): Money {
-    return this.taxableAmount.add(this.igv);
+    return this.saleValue.add(this.igv);
   }
 }

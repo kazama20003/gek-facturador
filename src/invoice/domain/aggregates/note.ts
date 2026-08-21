@@ -113,6 +113,15 @@ export class Note {
     );
   }
 
+  /** Notes only carry taxed lines for now; these keep the projection shape. */
+  get exoneratedAmount(): Money {
+    return Money.zero(this.props.currency);
+  }
+
+  get unaffectedAmount(): Money {
+    return Money.zero(this.props.currency);
+  }
+
   get igv(): Money {
     return this.items.reduce(
       (acc, item) => acc.add(item.igv),

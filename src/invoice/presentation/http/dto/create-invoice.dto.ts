@@ -116,6 +116,10 @@ export class CreateInvoiceItemDto {
     message: 'unitValue must be a decimal string, e.g. "100.00"',
   })
   unitValue!: string;
+
+  @IsOptional()
+  @IsIn(['10', '20', '30'])
+  igvAffectationCode?: string;
 }
 
 /** HTTP input shape only — tax rules and calculations live in the domain. */

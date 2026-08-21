@@ -8,6 +8,7 @@ import { Currency } from '../../domain/value-objects/currency';
 import { InvoiceSeries } from '../../domain/value-objects/invoice-series';
 import { Money } from '../../domain/value-objects/money';
 import { IdentityDocument } from '../../domain/value-objects/identity-document';
+import { IgvAffectationType } from '../../domain/value-objects/igv-affectation-type';
 import { Party } from '../../domain/value-objects/party';
 import {
   Installment,
@@ -46,6 +47,8 @@ export interface CreateInvoiceCommand {
     unitCode: string;
     quantity: string;
     unitValue: string;
+    /** SUNAT catalog 07: '10' taxed (default) | '20' exonerated | '30' unaffected. */
+    igvAffectationCode?: string;
   }>;
   /** Optional credit terms. Omitted → Contado (cash). */
   credit?: {
@@ -168,12 +171,15 @@ export class CreateInvoiceUseCase {
     });
 
     for (const item of command.items) {
-      invoice.addTaxableItem({
+      invoice.addItem({
         code: item.code,
         description: item.description,
         unitCode: item.unitCode,
         quantity: Quantity.create(item.quantity),
         unitValue: Money.create(item.unitValue, currency),
+        affectation: item.igvAffectationCode
+          ? IgvAffectationType.fromCode(item.igvAffectationCode)
+          : IgvAffectationType.TAXED_OPERATION,
       });
     }
 

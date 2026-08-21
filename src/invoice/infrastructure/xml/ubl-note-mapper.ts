@@ -1,6 +1,7 @@
 import { Note } from '../../domain/aggregates/note';
 import { InvalidPartyError } from '../../domain/errors/invoice-errors';
 import type { AmountInWordsConverter } from '../../application/ports/amount-in-words-converter.port';
+import { IgvAffectationType } from '../../domain/value-objects/igv-affectation-type';
 import { NoteType } from '../../domain/value-objects/note-type.enum';
 import { igvAffectationCode, IGV_PERCENT } from './ubl-catalog-mapper';
 import type { UblInvoiceDocument, UblLine } from './ubl-invoice-mapper';
@@ -66,9 +67,23 @@ export class UblNoteMapper {
         businessName: note.customer.businessName,
       },
       taxableAmount: note.taxableAmount.toFixed(),
+      exoneratedAmount: note.exoneratedAmount.toFixed(),
+      unaffectedAmount: note.unaffectedAmount.toFixed(),
       igv: note.igv.toFixed(),
       saleValue: note.saleValue.toFixed(),
       total: note.total.toFixed(),
+      taxSubtotals: [
+        {
+          taxableAmount: note.taxableAmount.toFixed(),
+          taxAmount: note.igv.toFixed(),
+          tax: {
+            id: IgvAffectationType.TAXED_OPERATION.taxScheme.id,
+            name: IgvAffectationType.TAXED_OPERATION.taxScheme.name,
+            internationalCode:
+              IgvAffectationType.TAXED_OPERATION.taxScheme.internationalCode,
+          },
+        },
+      ],
       lines: note.lines.map((line, index) => ({
         number: index + 1,
         quantity: line.quantity.toString(),
@@ -78,6 +93,11 @@ export class UblNoteMapper {
         igvAmount: line.igv.toFixed(),
         igvPercent: IGV_PERCENT,
         affectationCode: igvAffectationCode(line.affectation),
+        tax: {
+          id: line.affectation.taxScheme.id,
+          name: line.affectation.taxScheme.name,
+          internationalCode: line.affectation.taxScheme.internationalCode,
+        },
         description: line.description,
         code: line.code,
         unitValue: line.unitValue.toFixed(),
