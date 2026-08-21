@@ -22,7 +22,9 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | Operaciones gratuitas (código 11, tributo 9996) | Percepciones |
 | Afectación IGV: gravada (10), exonerada (20), inafecta (30), gratuita (11) | Percepciones/anticipos |
 
-> Solo entorno **beta/homologación** de SUNAT. Emitec no es (todavía) un PSE ni una integración certificada.
+> Por defecto apunta al **beta/homologación**. Para producción: `SUNAT_ENDPOINT=https://e-factura.sunat.gob.pe/ol-ti-itcpfegem/billService` + certificado tributario real y credenciales SOL del emisor. Emitec no es (todavía) un PSE ni una integración certificada.
+
+**Robustez (etapa 8):** reintentos con backoff exponencial ante fallos transitorios (red, HTTP 5xx/401/429, timeouts) — los faults de negocio de SUNAT no se reintentan; envío idempotente (una factura ACCEPTED no se reenvía); `POST /invoices/:id/sunat/cdr` reconsulta el CDR (getStatusCdr) si un envío quedó en duda.
 
 ## Estructura
 

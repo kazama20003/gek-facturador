@@ -6,6 +6,9 @@ import { FindInvoiceUseCase } from './application/use-cases/find-invoice.use-cas
 import { GenerateInvoiceXmlUseCase } from './application/use-cases/generate-invoice-xml.use-case';
 import { SendInvoiceToSunatUseCase } from './application/use-cases/send-invoice-to-sunat.use-case';
 import { SubmitStoredInvoiceUseCase } from './application/use-cases/submit-stored-invoice.use-case';
+import { QueryInvoiceCdrUseCase } from './application/use-cases/query-invoice-cdr.use-case';
+import { RetryingSunatBillSender } from './infrastructure/sunat/retrying-sunat-bill-sender';
+import type { SunatBillSender } from './application/ports/sunat-bill-sender.port';
 import { SignInvoiceXmlUseCase } from './application/use-cases/sign-invoice-xml.use-case';
 import { InMemoryInvoiceRepository } from './infrastructure/persistence/in-memory-invoice.repository';
 import { PrismaInvoiceRepository } from './infrastructure/persistence/prisma-invoice.repository';
@@ -69,10 +72,21 @@ function buildSigner(): XmldsigInvoiceSigner {
   return new XmldsigInvoiceSigner(loadSigningCredentials());
 }
 
-function buildSunatSender(): SunatSoapClient {
-  return new SunatSoapClient({
+function buildSunatSender(): SunatBillSender {
+  const client = new SunatSoapClient({
     endpoint: process.env.SUNAT_ENDPOINT ?? SUNAT_BETA_ENDPOINT,
     // Beta accepts the generic SOL user MODDATOS/moddatos for any RUC.
+    username: process.env.SUNAT_SOL_USERNAME ?? '20000000001MODDATOS',
+    password: process.env.SUNAT_SOL_PASSWORD ?? 'moddatos',
+  });
+  // Retry transient failures (network, HTTP 5xx, the beta's intermittent 401).
+  return new RetryingSunatBillSender(client);
+}
+
+/** Raw client for the async flows (summaries, voided) which need sendSummary/getStatus. */
+function buildSunatSummarySender(): SunatSoapClient {
+  return new SunatSoapClient({
+    endpoint: process.env.SUNAT_ENDPOINT ?? SUNAT_BETA_ENDPOINT,
     username: process.env.SUNAT_SOL_USERNAME ?? '20000000001MODDATOS',
     password: process.env.SUNAT_SOL_PASSWORD ?? 'moddatos',
   });
@@ -160,7 +174,7 @@ function buildSunatSender(): SunatSoapClient {
           generator,
           signer,
           new JszipInvoicePackager(),
-          buildSunatSender(),
+          buildSunatSummarySender(),
         ),
     },
     {
@@ -185,7 +199,7 @@ function buildSunatSender(): SunatSoapClient {
           generator,
           signer,
           new JszipInvoicePackager(),
-          buildSunatSender(),
+          buildSunatSummarySender(),
         ),
     },
     // Factories keep application and infrastructure classes free of NestJS decorators.
@@ -236,12 +250,7 @@ function buildSunatSender(): SunatSoapClient {
           buildGenerator(),
           buildSigner(),
           new JszipInvoicePackager(),
-          new SunatSoapClient({
-            endpoint: process.env.SUNAT_ENDPOINT ?? SUNAT_BETA_ENDPOINT,
-            // Beta accepts the generic SOL user MODDATOS/moddatos for any RUC.
-            username: process.env.SUNAT_SOL_USERNAME ?? '20000000001MODDATOS',
-            password: process.env.SUNAT_SOL_PASSWORD ?? 'moddatos',
-          }),
+          buildSunatSender(),
         ),
     },
     {
@@ -249,6 +258,12 @@ function buildSunatSender(): SunatSoapClient {
       inject: [INVOICE_REPOSITORY, SendInvoiceToSunatUseCase],
       useFactory: (repo: InvoiceRepository, send: SendInvoiceToSunatUseCase) =>
         new SubmitStoredInvoiceUseCase(repo, send),
+    },
+    {
+      provide: QueryInvoiceCdrUseCase,
+      inject: [INVOICE_REPOSITORY],
+      useFactory: (repo: InvoiceRepository) =>
+        new QueryInvoiceCdrUseCase(repo, buildSunatSender()),
     },
   ],
 })

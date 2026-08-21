@@ -63,3 +63,21 @@ export function buildGetStatusEnvelope(
   body.ele(SUNAT_SERVICE, 'ser:getStatus').ele('ticket').txt(params.ticket);
   return doc.end();
 }
+
+/** Re-queries the CDR of an already-submitted document (billService#getStatusCdr). */
+export function buildGetStatusCdrEnvelope(
+  params: Credentials & {
+    issuerRuc: string;
+    documentType: string;
+    series: string;
+    correlative: number;
+  },
+): string {
+  const { doc, body } = envelopeWithSecurity(params);
+  const op = body.ele(SUNAT_SERVICE, 'ser:getStatusCdr');
+  op.ele('rucComprobante').txt(params.issuerRuc);
+  op.ele('tipoComprobante').txt(params.documentType);
+  op.ele('serieComprobante').txt(params.series);
+  op.ele('numeroComprobante').txt(String(params.correlative));
+  return doc.end();
+}

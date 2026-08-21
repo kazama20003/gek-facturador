@@ -12,6 +12,8 @@ export interface SendInvoiceToSunatResult {
   readonly cdr: CdrResult;
   readonly cdrZipBase64: string;
   readonly signedXml: string;
+  /** True when the invoice was already accepted and no new submission was made. */
+  readonly alreadyAccepted?: boolean;
 }
 
 /**

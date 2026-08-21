@@ -30,6 +30,11 @@ import { fixtureNoteRequestBody } from './fixtures/note.fixture';
 jest.setTimeout(60_000);
 
 const fakeSender: SunatBillSender = {
+  getStatusCdr: () =>
+    Promise.resolve({
+      cdr: { responseCode: '0', description: 'ok', notes: [], accepted: true },
+      cdrZipBase64: '',
+    }),
   send: (): Promise<SunatSendResult> =>
     Promise.resolve({
       cdr: {

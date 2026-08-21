@@ -1,4 +1,5 @@
 import type {
+  CdrQuery,
   SunatBillSender,
   SunatSendResult,
 } from '../../application/ports/sunat-bill-sender.port';
@@ -8,6 +9,7 @@ import type {
   SunatTicket,
 } from '../../application/ports/sunat-summary-sender.port';
 import {
+  buildGetStatusCdrEnvelope,
   buildGetStatusEnvelope,
   buildSendBillEnvelope,
   buildSendSummaryEnvelope,
@@ -17,6 +19,10 @@ import { extractCdrXmlFromZip, parseCdrXml } from './cdr-parser';
 /** SEE del Contribuyente — homologation/beta endpoint. */
 export const SUNAT_BETA_ENDPOINT =
   'https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService';
+
+/** SEE del Contribuyente — production endpoint (requires a real tax certificate). */
+export const SUNAT_PRODUCTION_ENDPOINT =
+  'https://e-factura.sunat.gob.pe/ol-ti-itcpfegem/billService';
 
 export interface SunatSoapConfig {
   endpoint: string;
@@ -90,6 +96,38 @@ export class SunatSoapClient implements SunatBillSender, SunatSummarySender {
       );
     }
 
+    return this.parseApplicationResponse(responseText);
+  }
+
+  async getStatusCdr(query: CdrQuery): Promise<SunatSendResult> {
+    const responseText = await this.post(
+      buildGetStatusCdrEnvelope({
+        username: this.config.username,
+        password: this.config.password,
+        issuerRuc: query.issuerRuc,
+        documentType: query.documentType,
+        series: query.series,
+        correlative: query.correlative,
+      }),
+    );
+    return this.parseApplicationResponse(responseText);
+  }
+
+  private async parseApplicationResponse(
+    responseText: string,
+  ): Promise<SunatSendResult> {
+    const content =
+      responseText.match(
+        /<(?:\w+:)?content[^>]*>([\s\S]*?)<\/(?:\w+:)?content>/,
+      ) ??
+      responseText.match(
+        /<applicationResponse[^>]*>([\s\S]*?)<\/applicationResponse>/,
+      );
+    if (!content) {
+      throw new Error(
+        `Unexpected SUNAT response: ${responseText.slice(0, 300)}`,
+      );
+    }
     const cdrZipBase64 = content[1].trim();
     const cdrXml = await extractCdrXmlFromZip(
       Buffer.from(cdrZipBase64, 'base64'),

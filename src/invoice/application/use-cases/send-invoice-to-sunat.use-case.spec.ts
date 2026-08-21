@@ -31,6 +31,13 @@ class FakeSender implements SunatBillSender {
       cdrZipBase64: 'UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==',
     });
   }
+
+  getStatusCdr(): Promise<SunatSendResult> {
+    return Promise.resolve({
+      cdr: { responseCode: '0', description: 'ok', notes: [], accepted: true },
+      cdrZipBase64: '',
+    });
+  }
 }
 
 describe('SendInvoiceToSunatUseCase', () => {

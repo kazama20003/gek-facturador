@@ -21,6 +21,22 @@ export class SubmitStoredInvoiceUseCase {
       throw new InvoiceNotFoundError(id);
     }
 
+    // Idempotent: an already-accepted invoice is never re-sent to SUNAT.
+    if (stored.status === 'ACCEPTED' && stored.sunat) {
+      return {
+        fileName: stored.sunat.fileName,
+        cdr: {
+          responseCode: stored.sunat.responseCode,
+          description: stored.sunat.description,
+          notes: stored.sunat.notes,
+          accepted: true,
+        },
+        cdrZipBase64: '',
+        signedXml: '',
+        alreadyAccepted: true,
+      };
+    }
+
     const result = await this.sendToSunat.execute(stored.invoice);
     await this.invoices.recordSunatOutcome(id, result);
     return result;

@@ -25,6 +25,11 @@ jest.setTimeout(60_000);
 
 /** Fake sender: keeps the e2e test off the network. */
 const fakeSender: SunatBillSender = {
+  getStatusCdr: () =>
+    Promise.resolve({
+      cdr: { responseCode: '0', description: 'ok', notes: [], accepted: true },
+      cdrZipBase64: '',
+    }),
   send(): Promise<SunatSendResult> {
     return Promise.resolve({
       cdr: {

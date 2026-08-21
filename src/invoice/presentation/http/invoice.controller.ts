@@ -19,6 +19,10 @@ import {
 } from '../../application/use-cases/find-invoice.use-case';
 import { SubmitStoredInvoiceUseCase } from '../../application/use-cases/submit-stored-invoice.use-case';
 import {
+  QueryInvoiceCdrUseCase,
+  type QueryInvoiceCdrResult,
+} from '../../application/use-cases/query-invoice-cdr.use-case';
+import {
   GenerateInvoiceXmlUseCase,
   type GenerateInvoiceXmlResult,
 } from '../../application/use-cases/generate-invoice-xml.use-case';
@@ -47,6 +51,8 @@ export class InvoiceController {
     private readonly findInvoice: FindInvoiceUseCase,
     @Inject(SubmitStoredInvoiceUseCase)
     private readonly submitStoredInvoice: SubmitStoredInvoiceUseCase,
+    @Inject(QueryInvoiceCdrUseCase)
+    private readonly queryInvoiceCdr: QueryInvoiceCdrUseCase,
   ) {}
 
   @Get(':id')
@@ -59,6 +65,13 @@ export class InvoiceController {
   @HttpCode(HttpStatus.CREATED)
   submitToSunat(@Param('id') id: string): Promise<SendInvoiceToSunatResult> {
     return this.submitStoredInvoice.execute(id);
+  }
+
+  /** Re-queries SUNAT for the CDR of a persisted invoice (getStatusCdr). */
+  @Post(':id/sunat/cdr')
+  @HttpCode(HttpStatus.OK)
+  queryCdr(@Param('id') id: string): Promise<QueryInvoiceCdrResult> {
+    return this.queryInvoiceCdr.execute(id);
   }
 
   /** Temporary development endpoint — signs, zips and submits to SUNAT (beta by default). */
