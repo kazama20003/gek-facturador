@@ -77,8 +77,14 @@ const styles = {
   cAmount: { width: 65, textAlign: 'right' },
   footer: { flexDirection: 'row', marginTop: 10 },
   footerLeft: { flex: 1, paddingRight: 12 },
-  qr: { width: 110, height: 110 },
+  qr: { width: 110, height: 110, marginTop: 8 },
   words: { fontFamily: 'Helvetica-Bold', marginBottom: 8 },
+  legend: { marginBottom: 4 },
+  paymentBox: { marginBottom: 4 },
+  cuotaRow: { flexDirection: 'row', marginTop: 1 },
+  cuotaId: { width: 70 },
+  cuotaDate: { width: 80 },
+  cuotaAmount: { flex: 1, textAlign: 'right', paddingRight: 40 },
   totals: { width: 200 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
   totalLabel: { fontFamily: 'Helvetica-Bold' },
@@ -227,6 +233,8 @@ export class ReactInvoicePdfGenerator implements InvoicePdfGenerator {
         View,
         { style: styles.footerLeft },
         h(Text, { style: styles.words }, legend),
+        this.paymentTerms(rp, invoice, money),
+        this.detractionLegend(rp, invoice, money),
         h(Image, { style: styles.qr, src: qrDataUri }),
       ),
       h(
@@ -258,7 +266,21 @@ export class ReactInvoicePdfGenerator implements InvoicePdfGenerator {
               'Op. Gratuita:',
               money(invoice.freeAmount.toFixed()),
             ),
+        isZero(invoice.globalDiscount.toFixed())
+          ? null
+          : this.totalLine(
+              rp,
+              'Descuento global:',
+              `- ${money(invoice.globalDiscount.toFixed())}`,
+            ),
         this.totalLine(rp, 'IGV (18%):', money(invoice.igv.toFixed())),
+        isZero(invoice.freeIgv.toFixed())
+          ? null
+          : this.totalLine(
+              rp,
+              'IGV gratuitas:',
+              money(invoice.freeIgv.toFixed()),
+            ),
         this.totalLine(
           rp,
           'IMPORTE TOTAL:',
@@ -266,6 +288,64 @@ export class ReactInvoicePdfGenerator implements InvoicePdfGenerator {
           styles.grandTotal,
         ),
       ),
+    );
+  }
+
+  private paymentTerms(
+    rp: ReactPdf,
+    invoice: Invoice,
+    money: (value: string) => string,
+  ): ReactElement {
+    const { View, Text } = rp;
+    const terms = invoice.paymentTerms;
+    if (!terms.isCredit) {
+      return h(Text, { style: styles.legend }, 'Condición de pago: CONTADO');
+    }
+    const pending = terms.pendingAmount?.toFixed() ?? invoice.total.toFixed();
+    const rows = terms.installments.map((installment) =>
+      h(
+        View,
+        { style: styles.cuotaRow, key: installment.id },
+        h(Text, { style: styles.cuotaId }, installment.id),
+        h(
+          Text,
+          { style: styles.cuotaDate },
+          installment.dueDate.toISOString().slice(0, 10),
+        ),
+        h(
+          Text,
+          { style: styles.cuotaAmount },
+          money(installment.amount.toFixed()),
+        ),
+      ),
+    );
+    return h(
+      View,
+      { style: styles.paymentBox },
+      h(
+        Text,
+        { style: styles.legend },
+        `Condición de pago: CRÉDITO — Pendiente ${money(pending)}`,
+      ),
+      ...rows,
+    );
+  }
+
+  private detractionLegend(
+    rp: ReactPdf,
+    invoice: Invoice,
+    money: (value: string) => string,
+  ): ReactElement | null {
+    const detraction = invoice.detraction;
+    if (!detraction) {
+      return null;
+    }
+    return h(
+      rp.Text,
+      { style: styles.legend },
+      `Operación sujeta a detracción — Código ${detraction.code} ` +
+        `(${detraction.percent}%) — Cuenta BN ${detraction.account} — ` +
+        `Monto ${money(detraction.amount.toFixed())}`,
     );
   }
 
