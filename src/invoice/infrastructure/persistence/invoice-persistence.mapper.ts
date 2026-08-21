@@ -3,12 +3,16 @@ import type {
   invoice as InvoiceRow,
   invoice_item as ItemRow,
 } from '@prisma/client';
-import { Invoice } from '../../domain/aggregates/invoice';
+import {
+  Invoice,
+  type SaleDocumentType,
+} from '../../domain/aggregates/invoice';
 import { Address } from '../../domain/value-objects/address';
 import { Correlative } from '../../domain/value-objects/correlative';
 import { Currency } from '../../domain/value-objects/currency';
 import { InvoiceSeries } from '../../domain/value-objects/invoice-series';
 import { Money } from '../../domain/value-objects/money';
+import { IdentityDocument } from '../../domain/value-objects/identity-document';
 import { Party } from '../../domain/value-objects/party';
 import { Quantity } from '../../domain/value-objects/quantity';
 import { Ruc } from '../../domain/value-objects/ruc';
@@ -34,7 +38,8 @@ export class InvoicePersistenceMapper {
       issuer_province: address?.province ?? null,
       issuer_district: address?.district ?? null,
       issuer_address_line: address?.addressLine ?? null,
-      customer_ruc: invoice.customer.ruc.toString(),
+      customer_ruc: invoice.customer.identity.toString(),
+      customer_doc_type: invoice.customer.identity.code,
       customer_business_name: invoice.customer.businessName,
       taxable_amount: invoice.taxableAmount.toFixed(),
       igv: invoice.igv.toFixed(),
@@ -63,6 +68,7 @@ export class InvoicePersistenceMapper {
     const currency = row.currency as Currency;
     const invoice = Invoice.create({
       id: row.id,
+      documentType: row.document_type as SaleDocumentType,
       series: InvoiceSeries.create(row.series),
       correlative: Correlative.create(row.correlative),
       issueDate: row.issue_date,
@@ -86,8 +92,11 @@ export class InvoicePersistenceMapper {
               })
             : undefined,
       }),
-      customer: Party.create({
-        ruc: Ruc.create(row.customer_ruc),
+      customer: Party.withIdentity({
+        identity:
+          row.customer_doc_type === '1'
+            ? IdentityDocument.dni(row.customer_ruc)
+            : IdentityDocument.ruc(row.customer_ruc),
         businessName: row.customer_business_name,
       }),
     });

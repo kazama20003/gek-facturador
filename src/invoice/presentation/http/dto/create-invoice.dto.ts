@@ -25,6 +25,21 @@ export class PartyDto {
   businessName!: string;
 }
 
+/** Customer: RUC (invoices) or DNI (boletas). Exactly one must be provided. */
+export class CustomerDto {
+  @IsOptional()
+  @IsString()
+  ruc?: string;
+
+  @IsOptional()
+  @IsString()
+  dni?: string;
+
+  @IsString()
+  @MinLength(1)
+  businessName!: string;
+}
+
 export class AddressDto {
   @IsString()
   ubigeo!: string;
@@ -84,6 +99,10 @@ export class CreateInvoiceItemDto {
 
 /** HTTP input shape only — tax rules and calculations live in the domain. */
 export class CreateInvoiceDto {
+  @IsOptional()
+  @IsIn(['01', '03'])
+  documentType?: '01' | '03';
+
   @IsString()
   series!: string;
 
@@ -104,8 +123,8 @@ export class CreateInvoiceDto {
 
   @IsDefined()
   @ValidateNested()
-  @Type(() => PartyDto)
-  customer!: PartyDto;
+  @Type(() => CustomerDto)
+  customer!: CustomerDto;
 
   @IsArray()
   @ArrayMinSize(1)

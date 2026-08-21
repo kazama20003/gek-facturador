@@ -55,3 +55,5 @@ export class NoteNotFoundError extends DomainError {
     super(`Note ${id} was not found.`);
   }
 }
+
+export class InvalidIdentityDocumentError extends DomainError {}

@@ -116,22 +116,30 @@ export class UblNoteXmlGenerator {
       .txt(`#${SIGNATURE_ID}`);
   }
 
-  private buildPartyIdentification(party: XMLBuilder, ruc: string): void {
+  private buildPartyIdentification(
+    party: XMLBuilder,
+    docNumber: string,
+    docCode: string,
+  ): void {
     party
       .ele(NS.cac, 'PartyIdentification')
       .ele(NS.cbc, 'ID')
-      .att('schemeID', CAT.identityDocumentType.ruc)
+      .att('schemeID', docCode)
       .att('schemeName', CAT.identityDocumentType.schemeName)
       .att('schemeAgencyName', CAT.identityDocumentType.schemeAgencyName)
       .att('schemeURI', CAT.identityDocumentType.schemeURI)
-      .txt(ruc);
+      .txt(docNumber);
   }
 
   private buildSupplier(root: XMLBuilder, doc: UblNoteDocument): void {
     const party = root
       .ele(NS.cac, 'AccountingSupplierParty')
       .ele(NS.cac, 'Party');
-    this.buildPartyIdentification(party, doc.issuer.ruc);
+    this.buildPartyIdentification(
+      party,
+      doc.issuer.ruc,
+      CAT.identityDocumentType.ruc,
+    );
     if (doc.issuer.tradeName) {
       party
         .ele(NS.cac, 'PartyName')
@@ -165,7 +173,11 @@ export class UblNoteXmlGenerator {
     const party = root
       .ele(NS.cac, 'AccountingCustomerParty')
       .ele(NS.cac, 'Party');
-    this.buildPartyIdentification(party, doc.customer.ruc);
+    this.buildPartyIdentification(
+      party,
+      doc.customer.docNumber,
+      doc.customer.docCode,
+    );
     party
       .ele(NS.cac, 'PartyLegalEntity')
       .ele(NS.cbc, 'RegistrationName')

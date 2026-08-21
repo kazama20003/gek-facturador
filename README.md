@@ -2,13 +2,13 @@
 
 Librería y plataforma de **comprobantes electrónicos para Perú** (motor para el SEE — Sistema del Contribuyente), construida con **NestJS + TypeScript** aplicando **DDD con dominio puro y arquitectura hexagonal**.
 
-**Etapa actual (6):** facturas + **notas de crédito (07) y débito (08)** — pipeline completo dominio → XML UBL 2.1 → firma → ZIP → SUNAT beta → CDR, con persistencia de facturas. **Verificado contra el beta real: factura F001-1, NC F001-1 y ND F001-1 aceptadas con CDR limpio (ResponseCode 0).**
+**Etapa actual (6):** facturas + **boletas (03)** + notas de crédito (07) y débito (08) — pipeline completo dominio → XML UBL 2.1 → firma → ZIP → SUNAT beta → CDR, con persistencia. **Verificado contra el beta real: factura F001-1, boleta B001-1 (receptor DNI), NC F001-1 y ND F001-1 aceptadas con CDR limpio (ResponseCode 0).**
 
 ## Alcance actual
 
 | Soportado | No soportado todavía |
 | --- | --- |
-| Factura gravada básica (tipo 01, operación 0101, forma de pago Contado) | Boletas y resumen diario, guías |
+| Factura (01) y **boleta (03, receptor DNI)** gravadas básicas | Resumen diario de boletas, guías |
 | Notas de crédito (07) y débito (08) por `sendBill`, **persistidas** | Comunicación de baja |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
@@ -156,6 +156,17 @@ Incluye una prueba **golden file** (`test/fixtures/invoice-f001-1.golden.xml`) y
   2. `GET /invoices/:id` — estado (`ISSUED`/`ACCEPTED`/`REJECTED`) + datos del CDR; desconocida → **404**.
   3. `POST /invoices/:id/sunat/send` — envía a SUNAT y guarda CDR, XML firmado y estado.
 
+## Boletas (tipo 03)
+
+Mismo endpoint `POST /invoices` con `documentType: "03"`, serie `B###` y cliente con DNI:
+
+```json
+{ "documentType": "03", "series": "B001",
+  "customer": { "dni": "12345678", "businessName": "JUAN PEREZ" }, "...": "resto igual a factura" }
+```
+
+Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie B (receptor RUC o DNI). En **beta** la boleta fue aceptada vía `sendBill`; en **producción** las boletas se informan por resumen diario (`sendSummary`, pendiente).
+
 ## Notas de crédito y débito (endpoints dev)
 
 Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND; ej. `"01"` = anulación / intereses por mora), `reasonDescription` opcional y `modifies` (factura referenciada):
@@ -172,5 +183,5 @@ Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND;
 
 ## Próximas etapas
 
-1. Boletas (tipo 03, receptor con DNI) + resumen diario (`sendSummary`/`getStatus`) y comunicación de baja.
+1. Resumen diario de boletas (`sendSummary`/`getStatus`) y comunicación de baja.
 2. PDF; pago a crédito con cuotas; homologación hacia producción.

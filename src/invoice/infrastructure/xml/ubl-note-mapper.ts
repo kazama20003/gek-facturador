@@ -35,6 +35,7 @@ export class UblNoteMapper {
 
     return {
       type: note.type,
+      documentType: note.documentType,
       id: `${note.series.toString()}-${note.correlative.toNumber()}`,
       issueDate: isoDate(note.issueDate),
       issueTime: isoTime(note.issueDate),
@@ -58,7 +59,8 @@ export class UblNoteMapper {
         },
       },
       customer: {
-        ruc: note.customer.ruc.toString(),
+        docCode: note.customer.identity.code,
+        docNumber: note.customer.identity.toString(),
         businessName: note.customer.businessName,
       },
       taxableAmount: note.taxableAmount.toFixed(),

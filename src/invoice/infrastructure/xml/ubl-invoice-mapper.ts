@@ -31,6 +31,8 @@ export interface UblLine {
  */
 export interface UblInvoiceDocument {
   readonly id: string;
+  /** SUNAT catalog 01: '01' factura, '03' boleta. */
+  readonly documentType: string;
   readonly issueDate: string;
   readonly issueTime: string;
   readonly currency: string;
@@ -42,7 +44,9 @@ export interface UblInvoiceDocument {
     readonly address: UblAddress;
   };
   readonly customer: {
-    readonly ruc: string;
+    /** SUNAT catalog 06: '6' RUC, '1' DNI. */
+    readonly docCode: string;
+    readonly docNumber: string;
     readonly businessName: string;
   };
   readonly taxableAmount: string;
@@ -74,6 +78,7 @@ export class UblInvoiceMapper {
 
     return {
       id: `${invoice.series.toString()}-${invoice.correlative.toNumber()}`,
+      documentType: invoice.documentType,
       issueDate: isoDate(invoice.issueDate),
       issueTime: isoTime(invoice.issueDate),
       currency: invoice.currency,
@@ -91,7 +96,8 @@ export class UblInvoiceMapper {
         },
       },
       customer: {
-        ruc: invoice.customer.ruc.toString(),
+        docCode: invoice.customer.identity.code,
+        docNumber: invoice.customer.identity.toString(),
         businessName: invoice.customer.businessName,
       },
       taxableAmount: invoice.taxableAmount.toFixed(),

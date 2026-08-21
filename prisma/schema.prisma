@@ -28,6 +28,7 @@ model invoice {
   issuer_district        String?
   issuer_address_line    String?
   customer_ruc           String
+  customer_doc_type      String   @default("6")
   customer_business_name String
   taxable_amount         Decimal  @db.Decimal(12, 2)
   igv                    Decimal  @db.Decimal(12, 2)

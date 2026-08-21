@@ -64,7 +64,7 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
       .att('listURI', CAT.documentType.listURI)
       .att('listID', CAT.operationType.internalSale)
       .att('listSchemeURI', CAT.operationType.listSchemeURI)
-      .txt(CAT.documentType.invoice);
+      .txt(doc.documentType);
     root
       .ele(NS.cbc, 'Note')
       .att('languageLocaleID', CAT.legend.amountInWords)
@@ -101,7 +101,11 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     const party = root
       .ele(NS.cac, 'AccountingSupplierParty')
       .ele(NS.cac, 'Party');
-    this.buildPartyIdentification(party, doc.issuer.ruc);
+    this.buildPartyIdentification(
+      party,
+      doc.issuer.ruc,
+      CAT.identityDocumentType.ruc,
+    );
     if (doc.issuer.tradeName) {
       party
         .ele(NS.cac, 'PartyName')
@@ -135,22 +139,30 @@ export class UblInvoiceXmlGenerator implements InvoiceXmlGenerator {
     const party = root
       .ele(NS.cac, 'AccountingCustomerParty')
       .ele(NS.cac, 'Party');
-    this.buildPartyIdentification(party, doc.customer.ruc);
+    this.buildPartyIdentification(
+      party,
+      doc.customer.docNumber,
+      doc.customer.docCode,
+    );
     party
       .ele(NS.cac, 'PartyLegalEntity')
       .ele(NS.cbc, 'RegistrationName')
       .txt(doc.customer.businessName);
   }
 
-  private buildPartyIdentification(party: XMLBuilder, ruc: string): void {
+  private buildPartyIdentification(
+    party: XMLBuilder,
+    docNumber: string,
+    docCode: string,
+  ): void {
     party
       .ele(NS.cac, 'PartyIdentification')
       .ele(NS.cbc, 'ID')
-      .att('schemeID', CAT.identityDocumentType.ruc)
+      .att('schemeID', docCode)
       .att('schemeName', CAT.identityDocumentType.schemeName)
       .att('schemeAgencyName', CAT.identityDocumentType.schemeAgencyName)
       .att('schemeURI', CAT.identityDocumentType.schemeURI)
-      .txt(ruc);
+      .txt(docNumber);
   }
 
   private buildTaxScheme(parent: XMLBuilder): void {

@@ -7,6 +7,7 @@ import { Correlative } from '../../domain/value-objects/correlative';
 import { Currency } from '../../domain/value-objects/currency';
 import { InvoiceSeries } from '../../domain/value-objects/invoice-series';
 import { Money } from '../../domain/value-objects/money';
+import { IdentityDocument } from '../../domain/value-objects/identity-document';
 import { Party } from '../../domain/value-objects/party';
 import { Quantity } from '../../domain/value-objects/quantity';
 import { Ruc } from '../../domain/value-objects/ruc';
@@ -21,6 +22,8 @@ export interface AddressInput {
 
 /** Primitive input — the boundary between presentation and the domain. */
 export interface CreateInvoiceCommand {
+  /** SUNAT catalog 01: '01' factura (default) | '03' boleta. */
+  documentType?: '01' | '03';
   series: string;
   correlative: number;
   issueDate: string;
@@ -31,7 +34,8 @@ export interface CreateInvoiceCommand {
     tradeName?: string;
     address?: AddressInput;
   };
-  customer: { ruc: string; businessName: string };
+  /** Customer identity: RUC (invoices) or DNI (boletas). Exactly one. */
+  customer: { ruc?: string; dni?: string; businessName: string };
   items: Array<{
     code?: string;
     description: string;
@@ -50,7 +54,11 @@ export interface CreateInvoiceResult {
   issueDate: string;
   currency: string;
   issuer: { ruc: string; businessName: string };
-  customer: { ruc: string; businessName: string };
+  customer: {
+    documentType: string;
+    documentNumber: string;
+    businessName: string;
+  };
   taxableAmount: string;
   igv: string;
   saleValue: string;
@@ -82,7 +90,8 @@ export function serializeInvoice(invoice: Invoice): CreateInvoiceResult {
       businessName: invoice.issuer.businessName,
     },
     customer: {
-      ruc: invoice.customer.ruc.toString(),
+      documentType: invoice.customer.identity.code,
+      documentNumber: invoice.customer.identity.toString(),
       businessName: invoice.customer.businessName,
     },
     taxableAmount: invoice.taxableAmount.toFixed(),
@@ -116,6 +125,7 @@ export class CreateInvoiceUseCase {
 
     const invoice = Invoice.create({
       id: randomUUID(),
+      documentType: command.documentType,
       series: InvoiceSeries.create(command.series),
       correlative: Correlative.create(command.correlative),
       issueDate: new Date(command.issueDate),
@@ -128,8 +138,10 @@ export class CreateInvoiceUseCase {
           ? Address.create(command.issuer.address)
           : undefined,
       }),
-      customer: Party.create({
-        ruc: Ruc.create(command.customer.ruc),
+      customer: Party.withIdentity({
+        identity: command.customer.dni
+          ? IdentityDocument.dni(command.customer.dni)
+          : IdentityDocument.ruc(command.customer.ruc ?? ''),
         businessName: command.customer.businessName,
       }),
     });
