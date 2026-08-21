@@ -28,6 +28,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     return {
       invoice: InvoicePersistenceMapper.toAggregate(row),
       status: row.status as InvoiceStatus,
+      signedXml: row.signed_xml ?? undefined,
       sunat: row.cdr_response_code
         ? {
             fileName: row.sunat_file_name ?? '',

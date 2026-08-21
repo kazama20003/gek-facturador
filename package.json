@@ -1,15 +1,15 @@
 {
   "name": "emitec",
   "version": "0.0.1",
-  "description": "Emitec — librería y plataforma de comprobantes electrónicos para Perú (SEE del Contribuyente)",
+  "description": "Emitec \u2014 librer\u00eda y plataforma de comprobantes electr\u00f3nicos para Per\u00fa (SEE del Contribuyente)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "node api.js && nest build",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "start": "node api.js && nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
