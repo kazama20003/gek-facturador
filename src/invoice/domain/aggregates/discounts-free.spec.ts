@@ -77,6 +77,22 @@ describe('Global discount', () => {
       InvalidInvoiceItemError,
     );
   });
+
+  it('accepts a discount whose string would sort above the base (numeric compare)', () => {
+    const invoice = baseInvoice();
+    invoice.addItem({
+      description: 'Item',
+      unitCode: 'ZZ',
+      quantity: Quantity.create('10'),
+      unitValue: Money.pen('100.00'),
+      affectation: IgvAffectationType.TAXED_OPERATION,
+    });
+    // Base is 1000.00; a 30.00 discount is valid, yet '30.00' > '1000.00'
+    // lexicographically — the guard must compare numerically, not as strings.
+    expect(() => invoice.applyGlobalDiscount(Money.pen('30.00'))).not.toThrow();
+    invoice.issue();
+    expect(invoice.taxableAmount.toFixed()).toBe('970.00');
+  });
 });
 
 describe('Free transfer (código 11)', () => {

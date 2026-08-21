@@ -130,7 +130,7 @@ export class Invoice {
         `Discount currency ${amount.currency} does not match invoice currency ${this.currency}.`,
       );
     }
-    if (amount.toFixed() > this.rawTaxedBase.toFixed()) {
+    if (Number(amount.toFixed()) > Number(this.rawTaxedBase.toFixed())) {
       throw new InvalidInvoiceItemError(
         `Global discount (${amount.toFixed()}) cannot exceed the taxed base (${this.rawTaxedBase.toFixed()}).`,
       );
