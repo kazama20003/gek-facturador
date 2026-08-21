@@ -1,4 +1,5 @@
 import { InvoiceItem } from '../entities/invoice-item';
+import { IgvAffectationType } from '../value-objects/igv-affectation-type';
 import {
   CurrencyMismatchError,
   NoteWithoutItemsError,
@@ -54,12 +55,27 @@ export class Note {
     quantity: Quantity;
     unitValue: Money;
   }): void {
+    this.addItem({
+      ...params,
+      affectation: IgvAffectationType.TAXED_OPERATION,
+    });
+  }
+
+  addItem(params: {
+    code?: string;
+    description: string;
+    unitCode: string;
+    quantity: Quantity;
+    unitValue: Money;
+    affectation: IgvAffectationType;
+    discount?: Money;
+  }): void {
     if (params.unitValue.currency !== this.props.currency) {
       throw new CurrencyMismatchError(
         `Item currency ${params.unitValue.currency} does not match note currency ${this.props.currency}.`,
       );
     }
-    this.items.push(InvoiceItem.createTaxed(params));
+    this.items.push(InvoiceItem.create(params));
   }
 
   issue(): void {
@@ -106,20 +122,31 @@ export class Note {
     return [...this.items];
   }
 
+  private sumWhere(predicate: (item: InvoiceItem) => boolean): Money {
+    return this.items
+      .filter(predicate)
+      .reduce(
+        (acc, item) => acc.add(item.taxableAmount),
+        Money.zero(this.props.currency),
+      );
+  }
+
   get taxableAmount(): Money {
-    return this.items.reduce(
-      (acc, item) => acc.add(item.taxableAmount),
-      Money.zero(this.props.currency),
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.TAXED_OPERATION,
     );
   }
 
-  /** Notes only carry taxed lines for now; these keep the projection shape. */
   get exoneratedAmount(): Money {
-    return Money.zero(this.props.currency);
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.EXONERATED,
+    );
   }
 
   get unaffectedAmount(): Money {
-    return Money.zero(this.props.currency);
+    return this.sumWhere(
+      (i) => i.affectation === IgvAffectationType.UNAFFECTED,
+    );
   }
 
   get igv(): Money {
@@ -130,10 +157,13 @@ export class Note {
   }
 
   get saleValue(): Money {
-    return this.taxableAmount;
+    return this.items.reduce(
+      (acc, item) => acc.add(item.taxableAmount),
+      Money.zero(this.props.currency),
+    );
   }
 
   get total(): Money {
-    return this.taxableAmount.add(this.igv);
+    return this.saleValue.add(this.igv);
   }
 }

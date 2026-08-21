@@ -251,6 +251,7 @@ function buildSunatSummarySender(): SunatSoapClient {
           buildSigner(),
           new JszipInvoicePackager(),
           buildSunatSender(),
+          new ChildProcessUblXmlValidator(),
         ),
     },
     {

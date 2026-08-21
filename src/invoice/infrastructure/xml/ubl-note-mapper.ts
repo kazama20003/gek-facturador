@@ -2,6 +2,7 @@ import { Note } from '../../domain/aggregates/note';
 import { InvalidPartyError } from '../../domain/errors/invoice-errors';
 import type { AmountInWordsConverter } from '../../application/ports/amount-in-words-converter.port';
 import { IgvAffectationType } from '../../domain/value-objects/igv-affectation-type';
+import { Money } from '../../domain/value-objects/money';
 import { NoteType } from '../../domain/value-objects/note-type.enum';
 import { igvAffectationCode, IGV_PERCENT } from './ubl-catalog-mapper';
 import type { UblInvoiceDocument, UblLine } from './ubl-invoice-mapper';
@@ -77,18 +78,35 @@ export class UblNoteMapper {
       igv: note.igv.toFixed(),
       saleValue: note.saleValue.toFixed(),
       total: note.total.toFixed(),
-      taxSubtotals: [
-        {
-          taxableAmount: note.taxableAmount.toFixed(),
-          taxAmount: note.igv.toFixed(),
-          tax: {
-            id: IgvAffectationType.TAXED_OPERATION.taxScheme.id,
-            name: IgvAffectationType.TAXED_OPERATION.taxScheme.name,
-            internationalCode:
-              IgvAffectationType.TAXED_OPERATION.taxScheme.internationalCode,
+      taxSubtotals: (
+        [
+          {
+            base: note.taxableAmount,
+            tax: note.igv,
+            type: IgvAffectationType.TAXED_OPERATION,
           },
-        },
-      ],
+          {
+            base: note.exoneratedAmount,
+            tax: Money.zero(note.currency),
+            type: IgvAffectationType.EXONERATED,
+          },
+          {
+            base: note.unaffectedAmount,
+            tax: Money.zero(note.currency),
+            type: IgvAffectationType.UNAFFECTED,
+          },
+        ] as const
+      )
+        .filter((g) => g.base.toFixed() !== '0.00')
+        .map((g) => ({
+          taxableAmount: g.base.toFixed(),
+          taxAmount: g.tax.toFixed(),
+          tax: {
+            id: g.type.taxScheme.id,
+            name: g.type.taxScheme.name,
+            internationalCode: g.type.taxScheme.internationalCode,
+          },
+        })),
       lines: note.lines.map((line, index) => ({
         number: index + 1,
         quantity: line.quantity.toString(),
@@ -96,7 +114,7 @@ export class UblNoteMapper {
         taxableAmount: line.taxableAmount.toFixed(),
         unitPriceWithIgv: line.unitPrice.toFixed(),
         igvAmount: line.igv.toFixed(),
-        igvPercent: IGV_PERCENT,
+        igvPercent: line.affectation.isTaxed() ? IGV_PERCENT : '0.00',
         affectationCode: igvAffectationCode(line.affectation),
         tax: {
           id: line.affectation.taxScheme.id,

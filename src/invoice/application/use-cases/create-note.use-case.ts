@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Note } from '../../domain/aggregates/note';
+import { IgvAffectationType } from '../../domain/value-objects/igv-affectation-type';
 import { DuplicateNoteError } from '../../domain/errors/invoice-errors';
 import type { NoteRepository } from '../ports/note-repository.port';
 import { Address } from '../../domain/value-objects/address';
@@ -39,6 +40,8 @@ export interface CreateNoteCommand {
     unitCode: string;
     quantity: string;
     unitValue: string;
+    /** SUNAT catalog 07: '10' taxed (default) | '20' exon. | '30' unaffected. */
+    igvAffectationCode?: string;
   }>;
 }
 
@@ -182,12 +185,15 @@ export class CreateNoteUseCase {
         : Note.createDebit(base);
 
     for (const item of command.items) {
-      note.addTaxableItem({
+      note.addItem({
         code: item.code,
         description: item.description,
         unitCode: item.unitCode,
         quantity: Quantity.create(item.quantity),
         unitValue: Money.create(item.unitValue, currency),
+        affectation: item.igvAffectationCode
+          ? IgvAffectationType.fromCode(item.igvAffectationCode)
+          : IgvAffectationType.TAXED_OPERATION,
       });
     }
 

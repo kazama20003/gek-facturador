@@ -16,6 +16,8 @@ export interface SubmissionRecord {
 /** Port: audit log of asynchronous SUNAT submissions (RC/RA with their tickets). */
 export interface SubmissionRepository {
   record(entry: SubmissionRecord): Promise<void>;
+  /** Latest submission for a document id (RC-… / RA-…), or null. */
+  findByDocumentId(documentId: string): Promise<SubmissionRecord | null>;
 }
 
 export const SUBMISSION_REPOSITORY = Symbol('SubmissionRepository');

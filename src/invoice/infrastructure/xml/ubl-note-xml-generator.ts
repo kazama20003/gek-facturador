@@ -184,16 +184,19 @@ export class UblNoteXmlGenerator {
       .txt(doc.customer.businessName);
   }
 
-  private buildTaxScheme(parent: XMLBuilder): void {
+  private buildTaxScheme(
+    parent: XMLBuilder,
+    tax: { id: string; name: string; internationalCode: string },
+  ): void {
     const scheme = parent.ele(NS.cac, 'TaxScheme');
     scheme
       .ele(NS.cbc, 'ID')
       .att('schemeName', CAT.tax.schemeName)
       .att('schemeAgencyName', CAT.tax.schemeAgencyName)
       .att('schemeURI', CAT.tax.schemeURI)
-      .txt(CAT.tax.igv.id);
-    scheme.ele(NS.cbc, 'Name').txt(CAT.tax.igv.name);
-    scheme.ele(NS.cbc, 'TaxTypeCode').txt(CAT.tax.igv.typeCode);
+      .txt(tax.id);
+    scheme.ele(NS.cbc, 'Name').txt(tax.name);
+    scheme.ele(NS.cbc, 'TaxTypeCode').txt(tax.internationalCode);
   }
 
   private buildTaxTotal(root: XMLBuilder, doc: UblNoteDocument): void {
@@ -202,16 +205,18 @@ export class UblNoteXmlGenerator {
       .ele(NS.cbc, 'TaxAmount')
       .att('currencyID', doc.currency)
       .txt(doc.igv);
-    const subtotal = taxTotal.ele(NS.cac, 'TaxSubtotal');
-    subtotal
-      .ele(NS.cbc, 'TaxableAmount')
-      .att('currencyID', doc.currency)
-      .txt(doc.taxableAmount);
-    subtotal
-      .ele(NS.cbc, 'TaxAmount')
-      .att('currencyID', doc.currency)
-      .txt(doc.igv);
-    this.buildTaxScheme(subtotal.ele(NS.cac, 'TaxCategory'));
+    for (const sub of doc.taxSubtotals) {
+      const subtotal = taxTotal.ele(NS.cac, 'TaxSubtotal');
+      subtotal
+        .ele(NS.cbc, 'TaxableAmount')
+        .att('currencyID', doc.currency)
+        .txt(sub.taxableAmount);
+      subtotal
+        .ele(NS.cbc, 'TaxAmount')
+        .att('currencyID', doc.currency)
+        .txt(sub.taxAmount);
+      this.buildTaxScheme(subtotal.ele(NS.cac, 'TaxCategory'), sub.tax);
+    }
   }
 
   private buildLine(
@@ -272,7 +277,7 @@ export class UblNoteXmlGenerator {
       .att('listName', CAT.igvAffectation.listName)
       .att('listURI', CAT.igvAffectation.listURI)
       .txt(line.affectationCode);
-    this.buildTaxScheme(category);
+    this.buildTaxScheme(category, line.tax);
 
     const item = noteLine.ele(NS.cac, 'Item');
     item.ele(NS.cbc, 'Description').txt(line.description);
