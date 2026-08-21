@@ -46,7 +46,7 @@ describe('NotePersistenceMapper', () => {
           total: '118.00',
         },
       ],
-    } as never);
+    });
 
     expect(rebuilt.documentType).toBe('07');
     expect(rebuilt.total.toFixed()).toBe('118.00');
