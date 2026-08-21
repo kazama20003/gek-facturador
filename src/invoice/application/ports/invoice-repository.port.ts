@@ -14,6 +14,8 @@ export interface SunatOutcome {
 export interface StoredInvoice {
   readonly invoice: Invoice;
   readonly status: InvoiceStatus;
+  /** Signed UBL XML stored after a SUNAT submission, when available. */
+  readonly signedXml?: string;
   readonly sunat?: {
     readonly fileName: string;
     readonly responseCode: string;

@@ -88,6 +88,9 @@ describe('GET /invoices/:id/pdf (e2e)', () => {
       .expect(200);
 
     expect(response.headers['content-type']).toContain('application/pdf');
+    expect(response.headers['content-disposition']).toContain(
+      'F001-00000001.pdf',
+    );
     const body = response.body as Buffer;
     expect(Buffer.isBuffer(body)).toBe(true);
     expect(body.subarray(0, 4).toString('latin1')).toBe('%PDF');
