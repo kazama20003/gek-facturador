@@ -19,6 +19,10 @@ import {
 } from './create-invoice.dto';
 
 export class ModifiedDocumentDto {
+  @IsOptional()
+  @IsIn(['01', '03'])
+  documentType?: '01' | '03';
+
   @IsString()
   series!: string;
 

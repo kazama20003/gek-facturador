@@ -60,6 +60,7 @@ describe('POST /voided-documents (e2e, in-memory repo, sender mocked)', () => {
           { sign: (xml) => xml },
           { package: () => Promise.resolve(Buffer.from('zip')) },
           fakeSender,
+          undefined,
           () => '2026-08-21',
           () => Promise.resolve(),
         ),

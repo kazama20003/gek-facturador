@@ -2,6 +2,7 @@ import { fixtureRequestBody } from '../../../../test/fixtures/invoice.fixture';
 import { InvoiceNotFoundError } from '../../domain/errors/invoice-errors';
 import type { SunatSummarySender } from '../ports/sunat-summary-sender.port';
 import { InMemoryInvoiceRepository } from '../../infrastructure/persistence/in-memory-invoice.repository';
+import { InMemorySubmissionRepository } from '../../infrastructure/persistence/submission.repositories';
 import { UblVoidedXmlGenerator } from '../../infrastructure/xml/ubl-voided-xml-generator';
 import { CreateInvoiceUseCase } from './create-invoice.use-case';
 import {
@@ -33,6 +34,7 @@ function useCase(repo: InMemoryInvoiceRepository) {
     { sign: (xml) => xml },
     { package: () => Promise.resolve(Buffer.from('zip')) },
     sender,
+    new InMemorySubmissionRepository(),
     () => '2026-08-21',
     () => Promise.resolve(),
   );

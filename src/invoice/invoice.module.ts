@@ -51,6 +51,12 @@ import {
 import type { VoidedXmlGenerator } from './application/use-cases/void-invoices.use-case';
 import { UblVoidedXmlGenerator } from './infrastructure/xml/ubl-voided-xml-generator';
 import { VoidedController } from './presentation/http/voided.controller';
+import { SUBMISSION_REPOSITORY } from './application/ports/submission-repository.port';
+import type { SubmissionRepository } from './application/ports/submission-repository.port';
+import {
+  InMemorySubmissionRepository,
+  PrismaSubmissionRepository,
+} from './infrastructure/persistence/submission.repositories';
 import { NoteController } from './presentation/http/note.controller';
 
 function buildGenerator(): UblInvoiceXmlGenerator {
@@ -125,12 +131,25 @@ function buildSunatSender(): SunatSoapClient {
         new SubmitStoredNoteUseCase(repo, send),
     },
     {
+      provide: SUBMISSION_REPOSITORY,
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService): SubmissionRepository =>
+        process.env.DATABASE_URL
+          ? new PrismaSubmissionRepository(prisma)
+          : new InMemorySubmissionRepository(),
+    },
+    {
       provide: SUMMARY_XML_GENERATOR,
       useFactory: (): SummaryXmlGenerator => new UblSummaryXmlGenerator(),
     },
     {
       provide: SendDailySummaryUseCase,
-      inject: [INVOICE_REPOSITORY, SUMMARY_XML_GENERATOR, INVOICE_XML_SIGNER],
+      inject: [
+        INVOICE_REPOSITORY,
+        SUMMARY_XML_GENERATOR,
+        INVOICE_XML_SIGNER,
+        SUBMISSION_REPOSITORY,
+      ],
       useFactory: (
         repo: InvoiceRepository,
         generator: SummaryXmlGenerator,
@@ -150,7 +169,12 @@ function buildSunatSender(): SunatSoapClient {
     },
     {
       provide: VoidInvoicesUseCase,
-      inject: [INVOICE_REPOSITORY, VOIDED_XML_GENERATOR, INVOICE_XML_SIGNER],
+      inject: [
+        INVOICE_REPOSITORY,
+        VOIDED_XML_GENERATOR,
+        INVOICE_XML_SIGNER,
+        SUBMISSION_REPOSITORY,
+      ],
       useFactory: (
         repo: InvoiceRepository,
         generator: VoidedXmlGenerator,

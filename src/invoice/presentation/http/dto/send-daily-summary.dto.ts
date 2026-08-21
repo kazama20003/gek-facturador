@@ -1,4 +1,11 @@
-import { IsDateString, IsInt, IsPositive, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 
 /** HTTP input for the daily boleta summary. */
 export class SendDailySummaryDto {
@@ -11,4 +18,10 @@ export class SendDailySummaryDto {
   @IsInt()
   @IsPositive()
   summaryCorrelative!: number;
+
+  /** When present, the summary voids these boletas (ConditionCode 3). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  voidBoletaIds?: string[];
 }

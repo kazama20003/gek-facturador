@@ -6,6 +6,12 @@ import { SIGNATURE_ID, SUNAT_CATALOGS as CAT } from './ubl-catalog-mapper';
 const SUMMARY_NS =
   'urn:sunat:names:specification:ubl:peru:schema:xsd:SummaryDocuments-1';
 
+export interface SummaryLine {
+  boleta: Invoice;
+  /** Catalog: 1 = add, 2 = modify, 3 = void. */
+  conditionCode: '1' | '3';
+}
+
 export interface DailySummaryInput {
   /** Issue date of the summarized boletas (YYYY-MM-DD). */
   referenceDate: string;
@@ -13,7 +19,7 @@ export interface DailySummaryInput {
   issueDate: string;
   /** Sequential number of summaries sent for referenceDate. */
   correlative: number;
-  boletas: ReadonlyArray<Invoice>;
+  lines: ReadonlyArray<SummaryLine>;
 }
 
 export function summaryId(referenceDate: string, correlative: number): string {
@@ -28,7 +34,7 @@ export function summaryId(referenceDate: string, correlative: number): string {
  */
 export class UblSummaryXmlGenerator {
   generate(input: DailySummaryInput): string {
-    const issuer = input.boletas[0].issuer;
+    const issuer = input.lines[0].boleta.issuer;
     const id = summaryId(input.referenceDate, input.correlative);
 
     const root = create({ version: '1.0', encoding: 'UTF-8' }).ele(
@@ -80,8 +86,8 @@ export class UblSummaryXmlGenerator {
       .ele(NS.cbc, 'RegistrationName')
       .txt(issuer.businessName);
 
-    input.boletas.forEach((boleta, index) =>
-      this.buildLine(root, boleta, index + 1),
+    input.lines.forEach((line, index) =>
+      this.buildLine(root, line.boleta, index + 1, line.conditionCode),
     );
 
     return root.end({ prettyPrint: true });
@@ -91,6 +97,7 @@ export class UblSummaryXmlGenerator {
     root: ReturnType<typeof create>,
     boleta: Invoice,
     lineNumber: number,
+    conditionCode: '1' | '3',
   ): void {
     const currency = boleta.currency;
     const line = root.ele(NS.sac, 'SummaryDocumentsLine');
@@ -108,8 +115,8 @@ export class UblSummaryXmlGenerator {
       .ele(NS.cbc, 'AdditionalAccountID')
       .txt(boleta.customer.identity.code);
 
-    // ConditionCode 1 = add (catalog: 1 adicionar, 2 modificar, 3 anular).
-    line.ele(NS.cac, 'Status').ele(NS.cbc, 'ConditionCode').txt('1');
+    // Catalog: 1 adicionar, 2 modificar, 3 anular.
+    line.ele(NS.cac, 'Status').ele(NS.cbc, 'ConditionCode').txt(conditionCode);
 
     line
       .ele(NS.sac, 'TotalAmount')

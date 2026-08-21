@@ -10,7 +10,8 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | --- | --- |
 | Factura (01) y boleta (03, receptor DNI) gravadas básicas | Guías de remisión |
 | **Resumen diario de boletas (RC)** por sendSummary + ticket + getStatus | Pago a crédito con cuotas |
-| **Comunicación de baja (RA)** — anula facturas/notas aceptadas (estado VOIDED) | Exoneradas/inafectas, descuentos, detracciones |
+| **Comunicación de baja (RA)** y **anulación de boletas** (resumen, code 3) | Exoneradas/inafectas, descuentos, detracciones |
+| Historial de envíos asíncronos (tabla sunat_submission: RC/RA + ticket) | Guías de remisión |
 | Notas de crédito (07) y débito (08) por `sendBill`, **persistidas** | Comunicación de baja |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
@@ -171,7 +172,7 @@ Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie
 
 ### Resumen diario (RC)
 
-`POST /summaries/daily` con `{ "issuerRuc": "...", "referenceDate": "2026-08-20", "summaryCorrelative": 1 }`: carga las boletas persistidas de esa fecha, genera el XML `SummaryDocuments` (UBL 2.0, CustomizationID 1.1, ID `RC-YYYYMMDD-N`), lo firma, lo envía por `sendSummary`, hace polling de `getStatus` con el ticket (98=en proceso, 0=aceptado, 99=con errores) y marca las boletas ACCEPTED/REJECTED con el CDR del resumen. Verificado en vivo: RC-20260820-3 aceptado por el beta con 2 boletas.
+`POST /summaries/daily` con `{ "issuerRuc": "...", "referenceDate": "2026-08-20", "summaryCorrelative": 1 }`: carga las boletas persistidas de esa fecha, genera el XML `SummaryDocuments` (UBL 2.0, CustomizationID 1.1, ID `RC-YYYYMMDD-N`), lo firma, lo envía por `sendSummary`, hace polling de `getStatus` con el ticket (98=en proceso, 0=aceptado, 99=con errores) y marca las boletas ACCEPTED/REJECTED con el CDR del resumen. Con `voidBoletaIds` el resumen ANULA esas boletas (ConditionCode 3) y las marca VOIDED. Verificado en vivo: RC-20260820-3 aceptado por el beta con 2 boletas.
 
 ### Comunicación de baja (RA)
 
@@ -179,7 +180,7 @@ Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie
 
 ## Notas de crédito y débito (endpoints dev)
 
-Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND; ej. `"01"` = anulación / intereses por mora), `reasonDescription` opcional y `modifies` (factura referenciada):
+Las notas pueden referenciar **facturas o boletas** (`modifies.documentType`: '01' default | '03', serie B). Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND; ej. `"01"` = anulación / intereses por mora), `reasonDescription` opcional y `modifies` (factura referenciada):
 
 ```json
 { "series": "F001", "correlative": 1, "reasonCode": "01",

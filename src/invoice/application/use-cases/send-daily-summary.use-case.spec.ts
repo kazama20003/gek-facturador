@@ -5,6 +5,7 @@ import type {
   SunatSummaryStatus,
 } from '../ports/sunat-summary-sender.port';
 import { InMemoryInvoiceRepository } from '../../infrastructure/persistence/in-memory-invoice.repository';
+import { InMemorySubmissionRepository } from '../../infrastructure/persistence/submission.repositories';
 import { UblSummaryXmlGenerator } from '../../infrastructure/xml/ubl-summary-xml-generator';
 import { CreateInvoiceUseCase } from './create-invoice.use-case';
 import { SendDailySummaryUseCase } from './send-daily-summary.use-case';
@@ -53,6 +54,7 @@ function useCase(repo: InMemoryInvoiceRepository, sender: SunatSummarySender) {
     { sign: (xml) => xml },
     { package: () => Promise.resolve(Buffer.from('zip')) },
     sender,
+    new InMemorySubmissionRepository(),
     () => Promise.resolve(), // no real delays in tests
   );
 }
@@ -137,7 +139,10 @@ describe('UblSummaryXmlGenerator', () => {
       referenceDate: '2026-08-20',
       issueDate: '2026-08-21',
       correlative: 1,
-      boletas: stored.map((s) => s.invoice),
+      lines: stored.map((s) => ({
+        boleta: s.invoice,
+        conditionCode: '1' as const,
+      })),
     });
 
     expect(xml).toContain(
@@ -156,5 +161,78 @@ describe('UblSummaryXmlGenerator', () => {
     );
     expect(xml.match(/<sac:SummaryDocumentsLine>/g)).toHaveLength(2);
     expect(xml).toContain('<cbc:ID>B001-2</cbc:ID>');
+  });
+});
+
+describe('SendDailySummaryUseCase — voiding boletas (ConditionCode 3)', () => {
+  it('voids selected ACCEPTED boletas and records the RC submission', async () => {
+    const repo = await repoWithBoletas();
+    const stored = await repo.findBoletasByIssueDate(
+      '20000000001',
+      '2026-08-20',
+    );
+    for (const s of stored) {
+      await repo.recordSunatOutcome(s.invoice.id, {
+        fileName: 'rc.zip',
+        cdr: acceptedCdr,
+        cdrZipBase64: '',
+        signedXml: '',
+      });
+    }
+    const target = stored[0].invoice.id;
+
+    const submissions = new InMemorySubmissionRepository();
+    let generatedXml = '';
+    const sender = fakeSender([
+      { statusCode: '0', cdr: acceptedCdr, cdrZipBase64: 'UEs=' },
+    ]);
+    const uc = new SendDailySummaryUseCase(
+      repo,
+      new UblSummaryXmlGenerator(),
+      {
+        sign: (xml) => {
+          generatedXml = xml;
+          return xml;
+        },
+      },
+      { package: () => Promise.resolve(Buffer.from('zip')) },
+      sender,
+      submissions,
+      () => Promise.resolve(),
+    );
+
+    const result = await uc.execute({
+      issuerRuc: '20000000001',
+      referenceDate: '2026-08-20',
+      summaryCorrelative: 2,
+      voidBoletaIds: [target],
+    });
+
+    expect(result.boletas).toHaveLength(1);
+    expect(generatedXml).toContain('<cbc:ConditionCode>3</cbc:ConditionCode>');
+    expect((await repo.findById(target))?.status).toBe('VOIDED');
+    expect(submissions.entries).toHaveLength(1);
+    expect(submissions.entries[0]).toMatchObject({
+      kind: 'RC',
+      documentId: 'RC-20260820-2',
+      ticket: 'T-1',
+      statusCode: '0',
+    });
+  });
+
+  it('rejects voiding boletas that are not ACCEPTED', async () => {
+    const repo = await repoWithBoletas();
+    const stored = await repo.findBoletasByIssueDate(
+      '20000000001',
+      '2026-08-20',
+    );
+    await expect(
+      useCase(repo, fakeSender([{ statusCode: '0' }])).execute({
+        issuerRuc: '20000000001',
+        referenceDate: '2026-08-20',
+        summaryCorrelative: 2,
+        voidBoletaIds: [stored[0].invoice.id],
+      }),
+    ).rejects.toThrow(InvoiceNotFoundError);
   });
 });

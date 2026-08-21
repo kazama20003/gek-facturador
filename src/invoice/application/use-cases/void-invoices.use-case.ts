@@ -7,6 +7,7 @@ import type {
 } from '../ports/invoice-repository.port';
 import type { InvoiceXmlSigner } from '../ports/invoice-xml-signer.port';
 import type { CdrResult } from '../ports/sunat-bill-sender.port';
+import type { SubmissionRepository } from '../ports/submission-repository.port';
 import type { SunatSummarySender } from '../ports/sunat-summary-sender.port';
 import type { VoidedDocumentsInput } from '../../infrastructure/xml/ubl-voided-xml-generator';
 
@@ -50,6 +51,7 @@ export class VoidInvoicesUseCase {
     private readonly signer: InvoiceXmlSigner,
     private readonly packager: InvoicePackager,
     private readonly sender: SunatSummarySender,
+    private readonly submissions?: SubmissionRepository,
     private readonly today: () => string = () =>
       new Date().toISOString().slice(0, 10),
     private readonly delay: (ms: number) => Promise<void> = (ms) =>
@@ -145,6 +147,17 @@ export class VoidInvoicesUseCase {
         });
       }
     }
+
+    await this.submissions?.record({
+      kind: 'RA',
+      documentId: voidedId,
+      fileName: `${baseFileName}.zip`,
+      ticket,
+      statusCode,
+      cdr,
+      cdrZipBase64,
+      signedXml,
+    });
 
     return {
       voidedId,

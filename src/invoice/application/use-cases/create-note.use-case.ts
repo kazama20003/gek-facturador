@@ -24,8 +24,8 @@ export interface CreateNoteCommand {
   /** SUNAT reason code — catalog 09 (credit) or 10 (debit). */
   reasonCode: string;
   reasonDescription?: string;
-  /** Referenced invoice, e.g. { series: "F001", correlative: 1 }. */
-  modifies: { series: string; correlative: number };
+  /** Referenced document: invoice (01, default) or boleta (03). */
+  modifies: { documentType?: '01' | '03'; series: string; correlative: number };
   issuer: {
     ruc: string;
     businessName: string;
@@ -170,7 +170,10 @@ export class CreateNoteUseCase {
         command.reasonCode,
         command.reasonDescription,
       ),
-      modifies: ModifiedDocumentReference.toInvoice(command.modifies),
+      modifies: ModifiedDocumentReference.to(
+        command.modifies.documentType ?? '01',
+        command.modifies,
+      ),
     };
 
     const note =

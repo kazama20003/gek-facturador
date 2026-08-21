@@ -132,3 +132,22 @@ model note_item {
 
   @@index([id_note])
 }
+
+/// Asynchronous SUNAT submission (RC daily summary / RA voided communication).
+model sunat_submission {
+  id                String   @id @default(uuid())
+  /// RC (resumen diario) | RA (comunicacion de baja)
+  kind              String
+  document_id       String
+  file_name         String
+  ticket            String
+  status_code       String
+  cdr_response_code String?
+  cdr_description   String?
+  cdr_notes         String[] @default([])
+  cdr_zip_base64    String?
+  signed_xml        String?
+  created_at        DateTime @default(now())
+
+  @@index([kind, document_id])
+}

@@ -90,3 +90,23 @@ describe('Note (domain)', () => {
     );
   });
 });
+
+describe('Notes over boletas', () => {
+  it('references a boleta (03) with a B series', () => {
+    const ref = ModifiedDocumentReference.to('03', {
+      series: 'B001',
+      correlative: 5,
+    });
+    expect(ref.documentType).toBe('03');
+    expect(ref.id).toBe('B001-5');
+  });
+
+  it('rejects mismatched series for the referenced type', () => {
+    expect(() =>
+      ModifiedDocumentReference.to('03', { series: 'F001', correlative: 1 }),
+    ).toThrow();
+    expect(() =>
+      ModifiedDocumentReference.to('01', { series: 'B001', correlative: 1 }),
+    ).toThrow();
+  });
+});

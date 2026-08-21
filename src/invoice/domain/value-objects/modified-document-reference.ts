@@ -2,10 +2,10 @@ import { InvalidCorrelativeError } from '../errors/invoice-errors';
 import { Correlative } from './correlative';
 import { InvoiceSeries } from './invoice-series';
 
-/** Reference to the invoice a note modifies (BillingReference in UBL). */
+/** Reference to the document a note modifies (BillingReference in UBL). */
 export class ModifiedDocumentReference {
   private constructor(
-    /** SUNAT catalog 01 code of the referenced document (01 = invoice). */
+    /** SUNAT catalog 01 code of the referenced document: 01 invoice, 03 boleta. */
     readonly documentType: string,
     readonly series: InvoiceSeries,
     readonly correlative: Correlative,
@@ -15,14 +15,30 @@ export class ModifiedDocumentReference {
     series: string;
     correlative: number;
   }): ModifiedDocumentReference {
-    if (!Number.isInteger(params.correlative)) {
+    return ModifiedDocumentReference.to('01', params);
+  }
+
+  static toBoleta(params: {
+    series: string;
+    correlative: number;
+  }): ModifiedDocumentReference {
+    return ModifiedDocumentReference.to('03', params);
+  }
+
+  static to(
+    documentType: '01' | '03',
+    params: { series: string; correlative: number },
+  ): ModifiedDocumentReference {
+    const series = InvoiceSeries.create(params.series);
+    const expectedPrefix = documentType === '01' ? 'F' : 'B';
+    if (!series.startsWith(expectedPrefix)) {
       throw new InvalidCorrelativeError(
-        `Invalid referenced correlative: ${params.correlative}.`,
+        `Referenced document type ${documentType} requires a series starting with "${expectedPrefix}": "${params.series}".`,
       );
     }
     return new ModifiedDocumentReference(
-      '01',
-      InvoiceSeries.create(params.series),
+      documentType,
+      series,
       Correlative.create(params.correlative),
     );
   }
