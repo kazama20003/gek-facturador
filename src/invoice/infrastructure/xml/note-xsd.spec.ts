@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureNoteRequestBody } from '../../../../test/fixtures/note.fixture';
 import { CreateNoteUseCase } from '../../application/use-cases/create-note.use-case';
+import { InMemoryNoteRepository } from '../persistence/in-memory-note.repository';
 import { NoteType } from '../../domain/value-objects/note-type.enum';
 import { XmldsigInvoiceSigner } from '../signature/xmldsig-invoice-signer';
 import { SpanishAmountInWordsConverter } from '../words/spanish-amount-in-words.converter';
@@ -20,7 +21,7 @@ const signer = new XmldsigInvoiceSigner({
   certificatePem: readFileSync(join(certDir, 'test-cert.pem'), 'utf8'),
 });
 const validator = new ChildProcessUblXmlValidator();
-const useCase = new CreateNoteUseCase();
+const useCase = new CreateNoteUseCase(new InMemoryNoteRepository());
 
 describe('Signed notes vs official UBL 2.1 XSDs', () => {
   it('a signed credit note is 100% XSD-valid', async () => {

@@ -1,6 +1,7 @@
 import { create } from 'xmlbuilder2';
 import { fixtureNoteRequestBody } from '../../../../test/fixtures/note.fixture';
 import { CreateNoteUseCase } from '../../application/use-cases/create-note.use-case';
+import { InMemoryNoteRepository } from '../persistence/in-memory-note.repository';
 import { NoteType } from '../../domain/value-objects/note-type.enum';
 import { SpanishAmountInWordsConverter } from '../words/spanish-amount-in-words.converter';
 import { UblNoteMapper } from './ubl-note-mapper';
@@ -9,7 +10,7 @@ import { UblNoteXmlGenerator } from './ubl-note-xml-generator';
 const generator = new UblNoteXmlGenerator(
   new UblNoteMapper(new SpanishAmountInWordsConverter()),
 );
-const useCase = new CreateNoteUseCase();
+const useCase = new CreateNoteUseCase(new InMemoryNoteRepository());
 
 function xmlFor(type: NoteType, reasonCode: string): string {
   return generator.generate(

@@ -30,6 +30,12 @@ import {
 } from './application/use-cases/send-note-to-sunat.use-case';
 import { UblNoteMapper } from './infrastructure/xml/ubl-note-mapper';
 import { UblNoteXmlGenerator } from './infrastructure/xml/ubl-note-xml-generator';
+import { NOTE_REPOSITORY } from './application/ports/note-repository.port';
+import type { NoteRepository } from './application/ports/note-repository.port';
+import { FindNoteUseCase } from './application/use-cases/find-note.use-case';
+import { SubmitStoredNoteUseCase } from './application/use-cases/submit-stored-note.use-case';
+import { InMemoryNoteRepository } from './infrastructure/persistence/in-memory-note.repository';
+import { PrismaNoteRepository } from './infrastructure/persistence/prisma-note.repository';
 import { InvoiceController } from './presentation/http/invoice.controller';
 import { NoteController } from './presentation/http/note.controller';
 
@@ -64,7 +70,24 @@ function buildSunatSender(): SunatSoapClient {
           new UblNoteMapper(new SpanishAmountInWordsConverter()),
         ),
     },
-    { provide: CreateNoteUseCase, useFactory: () => new CreateNoteUseCase() },
+    {
+      provide: NOTE_REPOSITORY,
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService): NoteRepository =>
+        process.env.DATABASE_URL
+          ? new PrismaNoteRepository(prisma)
+          : new InMemoryNoteRepository(),
+    },
+    {
+      provide: CreateNoteUseCase,
+      inject: [NOTE_REPOSITORY],
+      useFactory: (repo: NoteRepository) => new CreateNoteUseCase(repo),
+    },
+    {
+      provide: FindNoteUseCase,
+      inject: [NOTE_REPOSITORY],
+      useFactory: (repo: NoteRepository) => new FindNoteUseCase(repo),
+    },
     {
       provide: SendNoteToSunatUseCase,
       inject: [NOTE_XML_GENERATOR, INVOICE_XML_SIGNER],
@@ -75,6 +98,12 @@ function buildSunatSender(): SunatSoapClient {
           new JszipInvoicePackager(),
           buildSunatSender(),
         ),
+    },
+    {
+      provide: SubmitStoredNoteUseCase,
+      inject: [NOTE_REPOSITORY, SendNoteToSunatUseCase],
+      useFactory: (repo: NoteRepository, send: SendNoteToSunatUseCase) =>
+        new SubmitStoredNoteUseCase(repo, send),
     },
     // Factories keep application and infrastructure classes free of NestJS decorators.
     {

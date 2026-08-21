@@ -43,3 +43,15 @@ export class NoteWithoutItemsError extends DomainError {
     super('A note cannot be issued without items.');
   }
 }
+
+export class DuplicateNoteError extends DomainError {
+  constructor(series: string, correlative: number) {
+    super(`Note ${series}-${correlative} already exists for this issuer.`);
+  }
+}
+
+export class NoteNotFoundError extends DomainError {
+  constructor(id: string) {
+    super(`Note ${id} was not found.`);
+  }
+}

@@ -68,3 +68,66 @@ model invoice_item {
 
   @@index([id_invoice])
 }
+
+/// Credit/debit note plus its SUNAT submission outcome.
+model note {
+  id                     String   @id
+  document_type          String
+  series                 String
+  correlative            Int
+  issue_date             DateTime
+  currency               String
+  reason_code            String
+  reason_description     String
+  modified_document_type String
+  modified_series        String
+  modified_correlative   Int
+  issuer_ruc             String
+  issuer_business_name   String
+  issuer_trade_name      String?
+  issuer_ubigeo          String?
+  issuer_department      String?
+  issuer_province        String?
+  issuer_district        String?
+  issuer_address_line    String?
+  customer_ruc           String
+  customer_business_name String
+  taxable_amount         Decimal  @db.Decimal(12, 2)
+  igv                    Decimal  @db.Decimal(12, 2)
+  sale_value             Decimal  @db.Decimal(12, 2)
+  total                  Decimal  @db.Decimal(12, 2)
+  /// ISSUED | ACCEPTED | REJECTED
+  status                 String
+  sunat_file_name        String?
+  cdr_response_code      String?
+  cdr_description        String?
+  cdr_notes              String[] @default([])
+  cdr_zip_base64         String?
+  signed_xml             String?
+  created_at             DateTime @default(now())
+
+  items note_item[]
+
+  @@unique([issuer_ruc, document_type, series, correlative])
+  @@index([issuer_ruc])
+}
+
+/// Note line, amounts as computed by the domain.
+model note_item {
+  id             String  @id @default(uuid())
+  id_note        String
+  line_number    Int
+  code           String?
+  description    String
+  unit_code      String
+  quantity       Decimal @db.Decimal(12, 3)
+  unit_value     Decimal @db.Decimal(12, 2)
+  taxable_amount Decimal @db.Decimal(12, 2)
+  igv            Decimal @db.Decimal(12, 2)
+  unit_price     Decimal @db.Decimal(12, 2)
+  total          Decimal @db.Decimal(12, 2)
+
+  note note @relation(fields: [id_note], references: [id], onDelete: Cascade)
+
+  @@index([id_note])
+}

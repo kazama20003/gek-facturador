@@ -1,14 +1,24 @@
 import {
   Body,
   Controller,
+  Get,
   Header,
   HttpCode,
   HttpStatus,
   Inject,
+  Param,
   Post,
 } from '@nestjs/common';
 import { NoteType } from '../../domain/value-objects/note-type.enum';
-import { CreateNoteUseCase } from '../../application/use-cases/create-note.use-case';
+import {
+  CreateNoteUseCase,
+  type CreateNoteResult,
+} from '../../application/use-cases/create-note.use-case';
+import {
+  FindNoteUseCase,
+  type FindNoteResult,
+} from '../../application/use-cases/find-note.use-case';
+import { SubmitStoredNoteUseCase } from '../../application/use-cases/submit-stored-note.use-case';
 import {
   SendNoteToSunatUseCase,
   type SendNoteToSunatResult,
@@ -35,7 +45,35 @@ export class NoteController {
     private readonly noteXmlGenerator: NoteXmlGenerator,
     @Inject(INVOICE_XML_SIGNER)
     private readonly signer: InvoiceXmlSigner,
+    @Inject(FindNoteUseCase)
+    private readonly findNote: FindNoteUseCase,
+    @Inject(SubmitStoredNoteUseCase)
+    private readonly submitStoredNote: SubmitStoredNoteUseCase,
   ) {}
+
+  @Post('credit-notes')
+  @HttpCode(HttpStatus.CREATED)
+  createCreditNote(@Body() dto: CreateNoteDto): Promise<CreateNoteResult> {
+    return this.createNote.execute(NoteType.Credit, dto);
+  }
+
+  @Post('debit-notes')
+  @HttpCode(HttpStatus.CREATED)
+  createDebitNote(@Body() dto: CreateNoteDto): Promise<CreateNoteResult> {
+    return this.createNote.execute(NoteType.Debit, dto);
+  }
+
+  @Get('notes/:id')
+  find(@Param('id') id: string): Promise<FindNoteResult> {
+    return this.findNote.execute(id);
+  }
+
+  /** Submits a persisted note to SUNAT and records the CDR outcome. */
+  @Post('notes/:id/sunat/send')
+  @HttpCode(HttpStatus.CREATED)
+  submitToSunat(@Param('id') id: string): Promise<SendNoteToSunatResult> {
+    return this.submitStoredNote.execute(id);
+  }
 
   @Post('credit-notes/xml/signed')
   @HttpCode(HttpStatus.CREATED)

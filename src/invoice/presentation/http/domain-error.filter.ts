@@ -7,7 +7,9 @@ import {
 import type { Response } from 'express';
 import {
   DuplicateInvoiceError,
+  DuplicateNoteError,
   InvoiceNotFoundError,
+  NoteNotFoundError,
 } from '../../domain/errors/invoice-errors';
 import { DomainError } from '../../../shared/domain/domain-error';
 
@@ -19,12 +21,17 @@ import { DomainError } from '../../../shared/domain/domain-error';
 export class DomainErrorFilter implements ExceptionFilter {
   catch(exception: DomainError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-    const status =
-      exception instanceof InvoiceNotFoundError
-        ? HttpStatus.NOT_FOUND
-        : exception instanceof DuplicateInvoiceError
-          ? HttpStatus.CONFLICT
-          : HttpStatus.UNPROCESSABLE_ENTITY;
+    const isNotFound =
+      exception instanceof InvoiceNotFoundError ||
+      exception instanceof NoteNotFoundError;
+    const isConflict =
+      exception instanceof DuplicateInvoiceError ||
+      exception instanceof DuplicateNoteError;
+    const status = isNotFound
+      ? HttpStatus.NOT_FOUND
+      : isConflict
+        ? HttpStatus.CONFLICT
+        : HttpStatus.UNPROCESSABLE_ENTITY;
 
     response.status(status).json({
       statusCode: status,

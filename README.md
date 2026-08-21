@@ -9,7 +9,7 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 | Soportado | No soportado todavía |
 | --- | --- |
 | Factura gravada básica (tipo 01, operación 0101, forma de pago Contado) | Boletas y resumen diario, guías |
-| Notas de crédito (07, catálogo 09) y débito (08, catálogo 10) por `sendBill` | Persistencia de notas, comunicación de baja |
+| Notas de crédito (07) y débito (08) por `sendBill`, **persistidas** | Comunicación de baja |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
 | Persistencia PostgreSQL/Prisma (estado + CDR) | Listados/consultas avanzadas |
@@ -167,9 +167,10 @@ Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND;
 
 - `POST /credit-notes/sunat/send` y `POST /debit-notes/sunat/send` → firman, empaquetan (`RUC-07/08-SERIE-CORR.zip`), envían y devuelven el CDR.
 - `POST /credit-notes/xml/signed` y `POST /debit-notes/xml/signed` → XML UBL firmado (`CreditNote`/`DebitNote`; ND usa `RequestedMonetaryTotal` según el XSD).
-- Motivo inválido para el catálogo → 422. Las notas aún no se persisten.
+- Motivo inválido para el catálogo → 422.
+- **Flujo persistido**: `POST /credit-notes` | `POST /debit-notes` (guarda; duplicado → 409) → `GET /notes/:id` → `POST /notes/:id/sunat/send` (envía y guarda CDR/estado). Migración `0002_notes`.
 
 ## Próximas etapas
 
 1. Boletas (tipo 03, receptor con DNI) + resumen diario (`sendSummary`/`getStatus`) y comunicación de baja.
-2. Persistencia de notas; PDF; pago a crédito con cuotas; homologación hacia producción.
+2. PDF; pago a crédito con cuotas; homologación hacia producción.

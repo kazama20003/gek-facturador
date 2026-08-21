@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Note } from '../../domain/aggregates/note';
+import { DuplicateNoteError } from '../../domain/errors/invoice-errors';
+import type { NoteRepository } from '../ports/note-repository.port';
 import { Address } from '../../domain/value-objects/address';
 import { Correlative } from '../../domain/value-objects/correlative';
 import { Currency } from '../../domain/value-objects/currency';
@@ -40,8 +42,108 @@ export interface CreateNoteCommand {
   }>;
 }
 
-/** Builds and issues a Note aggregate from primitives. No persistence yet. */
+/** Immutable, JSON-serializable note result. */
+export interface CreateNoteResult {
+  id: string;
+  documentType: string;
+  series: string;
+  correlative: number;
+  issueDate: string;
+  currency: string;
+  reasonCode: string;
+  reasonDescription: string;
+  modifies: { documentType: string; series: string; correlative: number };
+  issuer: { ruc: string; businessName: string };
+  customer: { ruc: string; businessName: string };
+  taxableAmount: string;
+  igv: string;
+  saleValue: string;
+  total: string;
+  items: Array<{
+    code?: string;
+    description: string;
+    unitCode: string;
+    quantity: string;
+    unitValue: string;
+    taxableAmount: string;
+    igv: string;
+    unitPrice: string;
+    total: string;
+  }>;
+}
+
+/** Serializes the Note aggregate for API responses. */
+export function serializeNote(note: Note): CreateNoteResult {
+  return {
+    id: note.id,
+    documentType: note.documentType,
+    series: note.series.toString(),
+    correlative: note.correlative.toNumber(),
+    issueDate: note.issueDate.toISOString(),
+    currency: note.currency,
+    reasonCode: note.reason.code,
+    reasonDescription: note.reason.description,
+    modifies: {
+      documentType: note.modifies.documentType,
+      series: note.modifies.series.toString(),
+      correlative: note.modifies.correlative.toNumber(),
+    },
+    issuer: {
+      ruc: note.issuer.ruc.toString(),
+      businessName: note.issuer.businessName,
+    },
+    customer: {
+      ruc: note.customer.ruc.toString(),
+      businessName: note.customer.businessName,
+    },
+    taxableAmount: note.taxableAmount.toFixed(),
+    igv: note.igv.toFixed(),
+    saleValue: note.saleValue.toFixed(),
+    total: note.total.toFixed(),
+    items: note.lines.map((line) => ({
+      code: line.code,
+      description: line.description,
+      unitCode: line.unitCode,
+      quantity: line.quantity.toString(),
+      unitValue: line.unitValue.toFixed(),
+      taxableAmount: line.taxableAmount.toFixed(),
+      igv: line.igv.toFixed(),
+      unitPrice: line.unitPrice.toFixed(),
+      total: line.total.toFixed(),
+    })),
+  };
+}
+
+/**
+ * Builds, issues and persists a Note. Rejects duplicated series+correlative
+ * per issuer and note type.
+ */
 export class CreateNoteUseCase {
+  constructor(private readonly notes: NoteRepository) {}
+
+  async execute(
+    type: NoteType,
+    command: CreateNoteCommand,
+  ): Promise<CreateNoteResult> {
+    const note = this.buildAggregate(type, command);
+
+    const duplicated = await this.notes.existsSeriesCorrelative(
+      note.issuer.ruc.toString(),
+      note.documentType,
+      note.series.toString(),
+      note.correlative.toNumber(),
+    );
+    if (duplicated) {
+      throw new DuplicateNoteError(
+        note.series.toString(),
+        note.correlative.toNumber(),
+      );
+    }
+
+    await this.notes.save(note);
+    return serializeNote(note);
+  }
+
   buildAggregate(type: NoteType, command: CreateNoteCommand): Note {
     const currency = Currency[command.currency];
 
