@@ -2,7 +2,16 @@ import type {
   SunatBillSender,
   SunatSendResult,
 } from '../../application/ports/sunat-bill-sender.port';
-import { buildSendBillEnvelope } from './soap-envelope';
+import type {
+  SunatSummarySender,
+  SunatSummaryStatus,
+  SunatTicket,
+} from '../../application/ports/sunat-summary-sender.port';
+import {
+  buildGetStatusEnvelope,
+  buildSendBillEnvelope,
+  buildSendSummaryEnvelope,
+} from './soap-envelope';
 import { extractCdrXmlFromZip, parseCdrXml } from './cdr-parser';
 
 /** SEE del Contribuyente — homologation/beta endpoint. */
@@ -32,20 +41,10 @@ export class SunatSoapFaultError extends Error {
  * Parses the applicationResponse (base64 CDR ZIP) or surfaces the SOAP fault
  * (faultcode is SUNAT's numeric error, e.g. 0111, 2335).
  */
-export class SunatSoapClient implements SunatBillSender {
+export class SunatSoapClient implements SunatBillSender, SunatSummarySender {
   constructor(private readonly config: SunatSoapConfig) {}
 
-  async send(
-    zipFileName: string,
-    zipContent: Buffer,
-  ): Promise<SunatSendResult> {
-    const envelope = buildSendBillEnvelope({
-      username: this.config.username,
-      password: this.config.password,
-      zipFileName,
-      zipBase64: zipContent.toString('base64'),
-    });
-
+  private async post(envelope: string): Promise<string> {
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '' },
@@ -66,6 +65,21 @@ export class SunatSoapClient implements SunatBillSender {
         `SUNAT HTTP ${response.status}: ${responseText.slice(0, 300)}`,
       );
     }
+    return responseText;
+  }
+
+  async send(
+    zipFileName: string,
+    zipContent: Buffer,
+  ): Promise<SunatSendResult> {
+    const responseText = await this.post(
+      buildSendBillEnvelope({
+        username: this.config.username,
+        password: this.config.password,
+        zipFileName,
+        zipBase64: zipContent.toString('base64'),
+      }),
+    );
 
     const content = responseText.match(
       /<applicationResponse[^>]*>([\s\S]*?)<\/applicationResponse>/,
@@ -81,5 +95,51 @@ export class SunatSoapClient implements SunatBillSender {
       Buffer.from(cdrZipBase64, 'base64'),
     );
     return { cdr: parseCdrXml(cdrXml), cdrZipBase64 };
+  }
+
+  async sendSummary(
+    zipFileName: string,
+    zipContent: Buffer,
+  ): Promise<SunatTicket> {
+    const responseText = await this.post(
+      buildSendSummaryEnvelope({
+        username: this.config.username,
+        password: this.config.password,
+        zipFileName,
+        zipBase64: zipContent.toString('base64'),
+      }),
+    );
+
+    const ticket = responseText.match(/<ticket[^>]*>([\s\S]*?)<\/ticket>/);
+    if (!ticket) {
+      throw new Error(
+        `sendSummary did not return a ticket: ${responseText.slice(0, 300)}`,
+      );
+    }
+    return { ticket: ticket[1].trim() };
+  }
+
+  async getStatus(ticket: string): Promise<SunatSummaryStatus> {
+    const responseText = await this.post(
+      buildGetStatusEnvelope({
+        username: this.config.username,
+        password: this.config.password,
+        ticket,
+      }),
+    );
+
+    const statusCode =
+      responseText
+        .match(/<statusCode[^>]*>([\s\S]*?)<\/statusCode>/)?.[1]
+        .trim() ?? '';
+    const content = responseText
+      .match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1]
+      .trim();
+
+    if (!content) {
+      return { statusCode };
+    }
+    const cdrXml = await extractCdrXmlFromZip(Buffer.from(content, 'base64'));
+    return { statusCode, cdr: parseCdrXml(cdrXml), cdrZipBase64: content };
   }
 }

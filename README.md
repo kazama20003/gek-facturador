@@ -8,7 +8,8 @@ Librería y plataforma de **comprobantes electrónicos para Perú** (motor para 
 
 | Soportado | No soportado todavía |
 | --- | --- |
-| Factura (01) y **boleta (03, receptor DNI)** gravadas básicas | Resumen diario de boletas, guías |
+| Factura (01) y boleta (03, receptor DNI) gravadas básicas | Guías de remisión |
+| **Resumen diario de boletas (RC)** por sendSummary + ticket + getStatus | Comunicación de baja (RA) |
 | Notas de crédito (07) y débito (08) por `sendBill`, **persistidas** | Comunicación de baja |
 | XML UBL 2.1 firmado (XML-DSig), certificados PEM y **PFX/PKCS#12** | Pago a crédito con cuotas |
 | Validación well-formed + XSD (OASIS UBL 2.1) | PDF, resúmenes/bajas |
@@ -165,7 +166,11 @@ Mismo endpoint `POST /invoices` con `documentType: "03"`, serie `B###` y cliente
   "customer": { "dni": "12345678", "businessName": "JUAN PEREZ" }, "...": "resto igual a factura" }
 ```
 
-Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie B (receptor RUC o DNI). En **beta** la boleta fue aceptada vía `sendBill`; en **producción** las boletas se informan por resumen diario (`sendSummary`, pendiente).
+Reglas del dominio: factura exige serie F y receptor con RUC; boleta exige serie B (receptor RUC o DNI). En **beta** la boleta fue aceptada vía `sendBill`; en **producción** las boletas se informan por **resumen diario** (ver abajo).
+
+### Resumen diario (RC)
+
+`POST /summaries/daily` con `{ "issuerRuc": "...", "referenceDate": "2026-08-20", "summaryCorrelative": 1 }`: carga las boletas persistidas de esa fecha, genera el XML `SummaryDocuments` (UBL 2.0, CustomizationID 1.1, ID `RC-YYYYMMDD-N`), lo firma, lo envía por `sendSummary`, hace polling de `getStatus` con el ticket (98=en proceso, 0=aceptado, 99=con errores) y marca las boletas ACCEPTED/REJECTED con el CDR del resumen. Verificado en vivo: RC-20260820-3 aceptado por el beta con 2 boletas.
 
 ## Notas de crédito y débito (endpoints dev)
 
@@ -183,5 +188,5 @@ Mismo cuerpo que la factura más `reasonCode` (catálogo 09 para NC, 10 para ND;
 
 ## Próximas etapas
 
-1. Resumen diario de boletas (`sendSummary`/`getStatus`) y comunicación de baja.
+1. Comunicación de baja (RA) — misma infraestructura de ticket ya disponible.
 2. PDF; pago a crédito con cuotas; homologación hacia producción.

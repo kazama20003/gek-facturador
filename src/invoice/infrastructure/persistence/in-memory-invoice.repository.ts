@@ -61,4 +61,22 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     }
     return Promise.resolve();
   }
+
+  findBoletasByIssueDate(
+    issuerRuc: string,
+    issueDate: string,
+  ): Promise<StoredInvoice[]> {
+    const matches: StoredInvoice[] = [];
+    for (const entry of this.entries.values()) {
+      const { invoice } = entry;
+      if (
+        invoice.documentType === '03' &&
+        invoice.issuer.ruc.toString() === issuerRuc &&
+        invoice.issueDate.toISOString().slice(0, 10) === issueDate
+      ) {
+        matches.push({ ...entry });
+      }
+    }
+    return Promise.resolve(matches);
+  }
 }

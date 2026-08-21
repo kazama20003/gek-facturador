@@ -33,6 +33,11 @@ export interface InvoiceRepository {
     correlative: number,
   ): Promise<boolean>;
   recordSunatOutcome(id: string, outcome: SunatOutcome): Promise<void>;
+  /** Boletas (03) issued on the given date (YYYY-MM-DD) by the issuer, for the daily summary. */
+  findBoletasByIssueDate(
+    issuerRuc: string,
+    issueDate: string,
+  ): Promise<StoredInvoice[]>;
 }
 
 export const INVOICE_REPOSITORY = Symbol('InvoiceRepository');

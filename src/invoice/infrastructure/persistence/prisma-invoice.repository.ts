@@ -70,4 +70,33 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
       },
     });
   }
+
+  async findBoletasByIssueDate(
+    issuerRuc: string,
+    issueDate: string,
+  ): Promise<StoredInvoice[]> {
+    const dayStart = new Date(`${issueDate}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        issuer_ruc: issuerRuc,
+        document_type: '03',
+        issue_date: { gte: dayStart, lt: dayEnd },
+      },
+      include: { items: true },
+      orderBy: [{ series: 'asc' }, { correlative: 'asc' }],
+    });
+    return rows.map((row) => ({
+      invoice: InvoicePersistenceMapper.toAggregate(row),
+      status: row.status as InvoiceStatus,
+      sunat: row.cdr_response_code
+        ? {
+            fileName: row.sunat_file_name ?? '',
+            responseCode: row.cdr_response_code,
+            description: row.cdr_description ?? '',
+            notes: row.cdr_notes,
+          }
+        : undefined,
+    }));
+  }
 }

@@ -36,7 +36,14 @@ import { FindNoteUseCase } from './application/use-cases/find-note.use-case';
 import { SubmitStoredNoteUseCase } from './application/use-cases/submit-stored-note.use-case';
 import { InMemoryNoteRepository } from './infrastructure/persistence/in-memory-note.repository';
 import { PrismaNoteRepository } from './infrastructure/persistence/prisma-note.repository';
+import {
+  SUMMARY_XML_GENERATOR,
+  SendDailySummaryUseCase,
+} from './application/use-cases/send-daily-summary.use-case';
+import type { SummaryXmlGenerator } from './application/use-cases/send-daily-summary.use-case';
+import { UblSummaryXmlGenerator } from './infrastructure/xml/ubl-summary-xml-generator';
 import { InvoiceController } from './presentation/http/invoice.controller';
+import { SummaryController } from './presentation/http/summary.controller';
 import { NoteController } from './presentation/http/note.controller';
 
 function buildGenerator(): UblInvoiceXmlGenerator {
@@ -59,7 +66,7 @@ function buildSunatSender(): SunatSoapClient {
 }
 
 @Module({
-  controllers: [InvoiceController, NoteController],
+  controllers: [InvoiceController, NoteController, SummaryController],
   providers: [
     PrismaService,
     { provide: INVOICE_XML_SIGNER, useFactory: () => buildSigner() },
@@ -104,6 +111,26 @@ function buildSunatSender(): SunatSoapClient {
       inject: [NOTE_REPOSITORY, SendNoteToSunatUseCase],
       useFactory: (repo: NoteRepository, send: SendNoteToSunatUseCase) =>
         new SubmitStoredNoteUseCase(repo, send),
+    },
+    {
+      provide: SUMMARY_XML_GENERATOR,
+      useFactory: (): SummaryXmlGenerator => new UblSummaryXmlGenerator(),
+    },
+    {
+      provide: SendDailySummaryUseCase,
+      inject: [INVOICE_REPOSITORY, SUMMARY_XML_GENERATOR, INVOICE_XML_SIGNER],
+      useFactory: (
+        repo: InvoiceRepository,
+        generator: SummaryXmlGenerator,
+        signer: XmldsigInvoiceSigner,
+      ) =>
+        new SendDailySummaryUseCase(
+          repo,
+          generator,
+          signer,
+          new JszipInvoicePackager(),
+          buildSunatSender(),
+        ),
     },
     // Factories keep application and infrastructure classes free of NestJS decorators.
     {
